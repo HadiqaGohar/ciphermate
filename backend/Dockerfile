@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy application code
 COPY . .
 
+# Make startup script executable
+RUN chmod +x start.sh
+
 # Test startup before switching user
 RUN python test_startup.py
 
@@ -39,5 +42,5 @@ USER app
 # Expose port
 EXPOSE 8080
 
-# Run the no-database version for Cloud Run
-CMD ["python", "-c", "import uvicorn; uvicorn.run('app.main_no_db:app', host='0.0.0.0', port=int(__import__('os').environ.get('PORT', 8080)), workers=1)"]
+# Run the startup script
+CMD ["./start.sh"]
