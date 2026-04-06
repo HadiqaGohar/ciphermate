@@ -14,7 +14,7 @@ const customJestConfig = {
     // Mock lucide-react icons
     '^lucide-react$': '<rootDir>/__mocks__/lucide-react.js',
     // Mock Auth0 NextJS SDK
-    '^@auth0/nextjs-auth0/client$': '<rootDir>/__mocks__/@auth0/nextjs-auth0/client.js',
+    '^@auth0/nextjs-auth0$': '<rootDir>/__mocks__/@auth0/nextjs-auth0.js',
   },
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
   collectCoverageFrom: [

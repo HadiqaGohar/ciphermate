@@ -9,7 +9,7 @@ import { jest } from '@jest/globals';
 global.fetch = jest.fn();
 
 // Mock Auth0 NextJS SDK
-jest.mock('@auth0/nextjs-auth0/client', () => ({
+jest.mock('@auth0/nextjs-auth0', () => ({
   useUser: jest.fn(),
   UserProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -37,7 +37,7 @@ import { apiPost } from '../../lib/api-client';
 
 // Mock implementations
 const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
-const mockUseUser = require('@auth0/nextjs-auth0/client').useUser as jest.MockedFunction<any>;
+const mockUseUser = require('@auth0/nextjs-auth0').useUser as jest.MockedFunction<any>;
 
 describe('End-to-End Authentication Flow', () => {
   beforeEach(() => {

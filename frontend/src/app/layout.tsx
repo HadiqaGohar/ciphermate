@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { UserProvider } from '@auth0/nextjs-auth0/client';
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { ServiceUnavailableHandler } from "@/components/auth/ServiceUnavailableHandler";
@@ -25,16 +24,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen flex flex-col`} suppressHydrationWarning>
-        <UserProvider>
-          <ServiceUnavailableHandler
-            showRetryButton={true}
-            autoRetryInterval={60000} // 1 minute
-            maxAutoRetries={5}
-          />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </UserProvider>
+        <ServiceUnavailableHandler
+          showRetryButton={true}
+          autoRetryInterval={60000} // 1 minute
+          maxAutoRetries={5}
+        />
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );

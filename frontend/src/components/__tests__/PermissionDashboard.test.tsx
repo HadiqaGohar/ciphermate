@@ -9,7 +9,7 @@ import '@testing-library/jest-dom';
 import { PermissionDashboard } from '../permissions/PermissionDashboard';
 
 // Mock the Auth0 hook
-jest.mock('@auth0/nextjs-auth0/client', () => ({
+jest.mock('@auth0/nextjs-auth0', () => ({
   useUser: () => ({
     user: {
       sub: 'auth0|test123',

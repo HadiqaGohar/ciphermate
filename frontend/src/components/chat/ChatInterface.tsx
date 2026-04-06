@@ -8,7 +8,7 @@ import { ActionConfirmationDialog } from "./ActionConfirmationDialog";
 import { LoadingIndicator } from "./LoadingIndicator";
 
 // Remove Auth0 import to avoid SSR issues
-// import { useUser } from "@auth0/nextjs-auth0/client";
+// import { useUser } from "@auth0/nextjs-auth0";
 
 export interface Message {
   id: string;

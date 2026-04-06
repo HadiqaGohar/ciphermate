@@ -9,7 +9,7 @@ import { jest } from '@jest/globals';
 import ChatInterface from '../../components/chat/ChatInterface';
 
 // Mock Auth0 NextJS SDK
-jest.mock('@auth0/nextjs-auth0/client', () => ({
+jest.mock('@auth0/nextjs-auth0', () => ({
   useUser: jest.fn(),
   UserProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -27,7 +27,7 @@ jest.mock('next/navigation', () => ({
 const mockFetch = jest.fn<typeof global.fetch>();
 global.fetch = mockFetch;
 
-const mockUseUser = require('@auth0/nextjs-auth0/client').useUser as jest.MockedFunction<any>;
+const mockUseUser = require('@auth0/nextjs-auth0').useUser as jest.MockedFunction<any>;
 
 // Mock console methods to avoid noise in tests
 const originalConsoleError = console.error;

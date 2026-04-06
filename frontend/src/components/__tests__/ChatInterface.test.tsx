@@ -10,7 +10,7 @@ import ChatInterface from '../chat/ChatInterface';
 import { apiPost } from '../../lib/api-client';
 
 // Mock the Auth0 hook
-jest.mock('@auth0/nextjs-auth0/client', () => ({
+jest.mock('@auth0/nextjs-auth0', () => ({
   useUser: () => ({
     user: {
       sub: 'auth0|test123',
