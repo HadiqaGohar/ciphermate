@@ -1,0 +1,46 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/backend/(.*)",
+      "destination": "$NEXT_PUBLIC_BACKEND_URL/api/v1/$1"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": "@backend-url",
+    "AUTH0_SECRET": "@auth0-secret",
+    "AUTH0_BASE_URL": "@auth0-base-url",
+    "AUTH0_ISSUER_BASE_URL": "@auth0-issuer-base-url",
+    "AUTH0_CLIENT_ID": "@auth0-client-id",
+    "AUTH0_CLIENT_SECRET": "@auth0-client-secret"
+  }
+}

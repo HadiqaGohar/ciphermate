@@ -1,0 +1,236 @@
+# Google Cloud Monitoring configuration for CipherMate
+# This file defines monitoring policies and alerting rules
+
+# Uptime check configuration
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ciphermate-backend-monitor
+  labels:
+    app: ciphermate-backend
+spec:
+  selector:
+    matchLabels:
+      app: ciphermate-backend
+  endpoints:
+  - port: http
+    path: /health
+    interval: 30s
+    scrapeTimeout: 10s
+
+---
+# Alert policies for Cloud Run service
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alerting-policies
+data:
+  policies.yaml: |
+    # High error rate alert
+    - displayName: "CipherMate Backend High Error Rate"
+      conditions:
+        - displayName: "Error rate > 5%"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend"'
+            comparison: COMPARISON_GREATER_THAN
+            thresholdValue: 0.05
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_MEAN
+                groupByFields:
+                  - resource.labels.service_name
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+    # High latency alert
+    - displayName: "CipherMate Backend High Latency"
+      conditions:
+        - displayName: "95th percentile latency > 2s"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend"'
+            comparison: COMPARISON_GREATER_THAN
+            thresholdValue: 2000
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_DELTA
+                crossSeriesReducer: REDUCE_PERCENTILE_95
+                groupByFields:
+                  - resource.labels.service_name
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+    # Low availability alert
+    - displayName: "CipherMate Backend Low Availability"
+      conditions:
+        - displayName: "Availability < 99%"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend"'
+            comparison: COMPARISON_LESS_THAN
+            thresholdValue: 0.99
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 300s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+                groupByFields:
+                  - resource.labels.service_name
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+    # High memory usage alert
+    - displayName: "CipherMate Backend High Memory Usage"
+      conditions:
+        - displayName: "Memory utilization > 80%"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend"'
+            comparison: COMPARISON_GREATER_THAN
+            thresholdValue: 0.8
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_MEAN
+                crossSeriesReducer: REDUCE_MEAN
+                groupByFields:
+                  - resource.labels.service_name
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+    # Database connection errors
+    - displayName: "CipherMate Database Connection Errors"
+      conditions:
+        - displayName: "Database connection failures"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend" AND textPayload:"database connection"'
+            comparison: COMPARISON_GREATER_THAN
+            thresholdValue: 5
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_SUM
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+    # Auth0 API errors
+    - displayName: "CipherMate Auth0 API Errors"
+      conditions:
+        - displayName: "Auth0 API failures"
+          conditionThreshold:
+            filter: 'resource.type="cloud_run_revision" AND resource.labels.service_name="ciphermate-backend" AND textPayload:"auth0"'
+            comparison: COMPARISON_GREATER_THAN
+            thresholdValue: 10
+            duration: 300s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_RATE
+                crossSeriesReducer: REDUCE_SUM
+      alertStrategy:
+        autoClose: 86400s
+      combiner: OR
+      enabled: true
+      notificationChannels: []
+
+---
+# Custom metrics configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-metrics
+data:
+  metrics.yaml: |
+    # Business metrics
+    - name: "ciphermate/user_actions"
+      description: "Number of user actions performed"
+      type: "counter"
+      labels:
+        - "action_type"
+        - "service_name"
+        - "success"
+
+    - name: "ciphermate/token_operations"
+      description: "Token Vault operations"
+      type: "counter"
+      labels:
+        - "operation"
+        - "service"
+        - "status"
+
+    - name: "ciphermate/ai_requests"
+      description: "AI agent requests"
+      type: "counter"
+      labels:
+        - "intent_type"
+        - "success"
+
+    - name: "ciphermate/permission_grants"
+      description: "Permission grants and revocations"
+      type: "counter"
+      labels:
+        - "service"
+        - "action"
+        - "scope"
+
+    # Performance metrics
+    - name: "ciphermate/response_time"
+      description: "API response times"
+      type: "histogram"
+      labels:
+        - "endpoint"
+        - "method"
+        - "status_code"
+
+    - name: "ciphermate/database_query_time"
+      description: "Database query execution time"
+      type: "histogram"
+      labels:
+        - "query_type"
+        - "table"
+
+    - name: "ciphermate/external_api_time"
+      description: "External API call duration"
+      type: "histogram"
+      labels:
+        - "service"
+        - "endpoint"
+        - "status"
+
+    # Security metrics
+    - name: "ciphermate/security_events"
+      description: "Security events detected"
+      type: "counter"
+      labels:
+        - "event_type"
+        - "severity"
+        - "resolved"
+
+    - name: "ciphermate/failed_authentications"
+      description: "Failed authentication attempts"
+      type: "counter"
+      labels:
+        - "reason"
+        - "ip_address"
+
+    - name: "ciphermate/rate_limit_hits"
+      description: "Rate limit violations"
+      type: "counter"
+      labels:
+        - "endpoint"
+        - "user_id"
