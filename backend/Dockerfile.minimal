@@ -1,0 +1,26 @@
+# Minimal Dockerfile for testing
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+ENV DISABLE_DATABASE=true
+ENV DISABLE_REDIS=true
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app code
+COPY . .
+
+# Test imports
+RUN python test_container.py
+
+# Expose port
+EXPOSE 8080
+
+# Simple command
+CMD ["uvicorn", "app.main_no_db:app", "--host", "0.0.0.0", "--port", "8080"]

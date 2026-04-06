@@ -28,11 +28,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy application code
 COPY . .
 
-# Make startup script executable
-RUN chmod +x start.sh
-
 # Test startup before switching user
-RUN python test_startup.py
+RUN python test_container.py
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
@@ -42,5 +39,5 @@ USER app
 # Expose port
 EXPOSE 8080
 
-# Run the startup script
-CMD ["./start.sh"]
+# Use simple uvicorn command
+CMD uvicorn app.main_no_db:app --host 0.0.0.0 --port 8080 --workers 1
