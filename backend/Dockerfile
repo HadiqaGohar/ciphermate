@@ -5,6 +5,9 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8080
+ENV APP_ENV=production
+ENV DISABLE_DATABASE=true
+ENV DISABLE_REDIS=true
 
 WORKDIR /app
 
@@ -25,6 +28,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy application code
 COPY . .
 
+# Test startup before switching user
+RUN python test_startup.py
+
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
@@ -33,5 +39,5 @@ USER app
 # Expose port
 EXPOSE 8080
 
-# Run the application - Use exec form and let Cloud Run handle PORT
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
+# Run the no-database version for Cloud Run
+CMD ["python", "-c", "import uvicorn; uvicorn.run('app.main_no_db:app', host='0.0.0.0', port=int(__import__('os').environ.get('PORT', 8080)), workers=1)"]

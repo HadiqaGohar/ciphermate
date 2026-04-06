@@ -1,20 +1,23 @@
+"""
+Simplified main.py for Cloud Run deployment testing
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+import os
 
 # Create FastAPI application
 app = FastAPI(
     title="CipherMate API",
-    description="Secure AI Assistant Platform with Auth0 Token Vault",
-    version="0.1.0",
+    description="Secure AI Assistant Platform",
+    version="0.1.0"
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=["*"],  # In production, specify your frontend domain
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -22,25 +25,22 @@ app.add_middleware(
 async def root():
     """Root endpoint"""
     return {
-        "message": "CipherMate API",
+        "message": "CipherMate API is running",
         "version": "0.1.0",
-        "status": "running"
+        "status": "healthy",
+        "port": os.getenv("PORT", "8080")
     }
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
-
-@app.get("/api/v1/health")
-async def api_health_check():
-    """API Health check endpoint"""
-    return {"status": "healthy", "api": "v1"}
+    """Health check endpoint for Cloud Run"""
+    return {
+        "status": "healthy",
+        "service": "ciphermate-backend",
+        "port": os.getenv("PORT", "8080")
+    }
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "simple_main:app",
-        host="0.0.0.0",
-        port=8080,
-        reload=True,
-    )
+    import uvicorn
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
