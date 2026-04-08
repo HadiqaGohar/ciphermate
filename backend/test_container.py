@@ -13,6 +13,10 @@ def test_imports():
         from pydantic_settings import BaseSettings
         print("✅ pydantic_settings imported successfully")
         
+        print("Testing agents...")
+        from agents import Agent, Runner, RunConfig
+        print("✅ agents imported successfully")
+        
         print("Testing app.main_no_db...")
         from app.main_no_db import app
         print("✅ app.main_no_db imported successfully")

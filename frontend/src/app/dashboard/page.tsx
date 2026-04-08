@@ -1,197 +1,351 @@
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
+"use client";
 
-export default async function Dashboard() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('appSession');
-  
-  let user = null;
-  if (sessionCookie) {
+import { useUser } from "@auth0/nextjs-auth0/client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+
+interface Connection {
+  id: string;
+  service_name: string;
+  service_type: string;
+  status: string;
+  created_at: string;
+}
+
+interface Action {
+  id: string;
+  agent_type: string;
+  action: string;
+  status: string;
+  created_at: string;
+  result?: any;
+}
+
+interface Stats {
+  total_users: number;
+  total_connections: number;
+  total_actions: number;
+  total_tokens: number;
+  uptime: string;
+  api_calls_today: number;
+  active_agents: number;
+}
+
+export default function Dashboard() {
+  const { user, error, isLoading } = useUser();
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
     try {
-      const session = JSON.parse(sessionCookie.value);
-      user = session.user;
-    } catch {
-      // Invalid session cookie
-    }
-  }
+      const token = "dev-token"; // For development
+      
+      // Fetch connections
+      const connectionsRes = await fetch("/api/v1/connections", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (connectionsRes.ok) {
+        const connectionsData = await connectionsRes.json();
+        setConnections(connectionsData);
+      }
 
-  if (!user) {
-    redirect('/auth/login');
-  }
+      // Fetch actions
+      const actionsRes = await fetch("/api/v1/actions", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (actionsRes.ok) {
+        const actionsData = await actionsRes.json();
+        setActions(actionsData);
+      }
 
-  const dashboardCards = [
-    {
-      title: "AI CHAT",
-      description: "INTERACT WITH SECURE AI ASSISTANT",
-      icon: "🤖",
-      href: "/chat",
-      stats: "24/7 AVAILABLE"
-    },
-    {
-      title: "PERMISSIONS",
-      description: "MANAGE THIRD-PARTY ACCESS CONTROL",
-      icon: "🔐",
-      href: "/permissions",
-      stats: "ENTERPRISE GRADE"
-    },
-    {
-      title: "AUDIT LOGS",
-      description: "VIEW SECURITY & ACTIVITY LOGS",
-      icon: "📊",
-      href: "/audit",
-      stats: "REAL-TIME MONITORING"
-    },
-    {
-      title: "TOKEN VAULT",
-      description: "MANAGE ENCRYPTED SERVICE TOKENS",
-      icon: "🔒",
-      href: "/token-vault",
-      stats: "AES-256 ENCRYPTED"
-    },
-    {
-      title: "AI AGENT",
-      description: "MONITOR AI ACTIONS & PERFORMANCE",
-      icon: "🧠",
-      href: "/ai-agent",
-      stats: "INTELLIGENT MONITORING"
-    },
-    {
-      title: "SYSTEM STATUS",
-      description: "CHECK SYSTEM HEALTH & METRICS",
-      icon: "📈",
-      href: "/status",
-      stats: "99.9% UPTIME"
+      // Fetch stats
+      const statsRes = await fetch("/api/v1/demo/stats");
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const simulateAction = async () => {
+    try {
+      const token = "dev-token";
+      const response = await fetch("/api/v1/demo/simulate-action", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (response.ok) {
+        fetchData(); // Refresh data
+      }
+    } catch (error) {
+      console.error("Error simulating action:", error);
+    }
+  };
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">Error: {error.message}</div>;
+  if (!user) return <div className="min-h-screen flex items-center justify-center">Please log in</div>;
 
   return (
-    <DashboardLayout user={user}>
-      {/* Welcome Section */}
-      <div className="mb-12">
-        <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-sm border border-slate-200/50 rounded-2xl p-8 shadow-lg shadow-slate-200/50">
-          <div className="text-center">
-            <h2 className="text-3xl font-semibold text-slate-800 mb-4 tracking-wide">
-              Welcome back, {user?.name || 'User'}
-            </h2>
-            <p className="text-blue-600 text-lg font-medium mb-8">
-              Your secure AI workspace is ready
-            </p>
-            <div className="flex justify-center items-center space-x-12">
-              <div className="text-center group">
-                <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-300">🔒</div>
-                <div className="text-sm font-medium text-slate-600">
-                  Secure
-                </div>
-              </div>
-              <div className="text-center group">
-                <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-300">🤖</div>
-                <div className="text-sm font-medium text-slate-600">
-                  AI Powered
-                </div>
-              </div>
-              <div className="text-center group">
-                <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-300">⚡</div>
-                <div className="text-sm font-medium text-slate-600">
-                  Fast
-                </div>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-slate-500 bg-clip-text text-transparent">
+                CipherMate
+              </Link>
+              <span className="text-slate-500 dark:text-slate-400">Dashboard</span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <div className="bg-gradient-to-br from-blue-500/90 to-blue-600/80 backdrop-blur-sm rounded-xl p-6 text-center shadow-md shadow-blue-200/50">
-          <div className="text-3xl font-semibold text-white mb-2">24/7</div>
-          <div className="text-blue-100 text-sm font-medium">
-            AI Availability
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-sm rounded-xl p-6 text-center shadow-md shadow-slate-200/50 border border-slate-200/50">
-          <div className="text-3xl font-semibold text-slate-800 mb-2">99.9%</div>
-          <div className="text-blue-600 text-sm font-medium">
-            System Uptime
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-700/90 to-slate-800/80 backdrop-blur-sm rounded-xl p-6 text-center shadow-md shadow-slate-400/30">
-          <div className="text-3xl font-semibold text-white mb-2">256</div>
-          <div className="text-blue-300 text-sm font-medium">
-            Bit Encryption
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-emerald-500/90 to-emerald-600/80 backdrop-blur-sm rounded-xl p-6 text-center shadow-md shadow-emerald-200/50">
-          <div className="text-3xl font-semibold text-white mb-2">0</div>
-          <div className="text-emerald-100 text-sm font-medium">
-            Security Breaches
-          </div>
-        </div>
-      </div>
-
-      {/* Dashboard Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {dashboardCards.map((card, index) => (
-          <div
-            key={index}
-            className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-sm border border-slate-200/50 rounded-2xl p-8 shadow-lg shadow-slate-200/50 transition-all duration-300 transform hover:scale-105 hover:shadow-xl hover:shadow-blue-200/30 group"
-          >
-            <div className="text-center">
-              <div className="text-5xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                {card.icon}
-              </div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-3 tracking-wide">
-                {card.title}
-              </h3>
-              <p className="text-blue-600 text-sm font-medium mb-6">
-                {card.description}
-              </p>
-              <div className="bg-gradient-to-r from-slate-100 to-blue-50 text-slate-700 px-4 py-2 mb-6 rounded-lg border border-slate-200/50">
-                <span className="text-xs font-medium">
-                  {card.stats}
-                </span>
+            <div className="flex items-center gap-4">
+              <img
+                src={user.picture || "https://via.placeholder.com/40"}
+                alt={user.name || "User"}
+                className="w-10 h-10 rounded-full"
+              />
+              <div className="text-right">
+                <p className="font-medium text-slate-900 dark:text-white">{user.name}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
               </div>
               <a
-                href={card.href}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-6 font-medium text-sm rounded-xl transition-all duration-300 transform hover:scale-105 shadow-md shadow-blue-200/50 inline-block"
+                href="/api/auth/logout"
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               >
-                Access Now →
+                Logout
               </a>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      </header>
 
-      {/* Security Notice */}
-      <div className="mt-12">
-        <div className="bg-gradient-to-br from-slate-800/95 to-slate-900/90 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 shadow-lg shadow-slate-400/20">
-          <div className="text-center">
-            <h3 className="text-2xl font-semibold text-white mb-4 tracking-wide">
-              🔒 Security Notice
-            </h3>
-            <p className="text-blue-300 text-sm font-medium mb-6">
-              All communications are encrypted with enterprise-grade security
-            </p>
-            <div className="flex justify-center items-center space-x-8">
-              <div className="text-center">
-                <div className="text-white text-xs font-medium">
-                  ✓ AES-256 Encryption
+      <div className="container mx-auto px-6 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+            Welcome back, {user.name?.split(" ")[0]}!
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Manage your AI agents and service connections from your secure dashboard.
+          </p>
+        </div>
+
+        {/* Stats Cards */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Connections</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{connections.length}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-white text-xs font-medium">
-                  ✓ Zero-Trust Architecture
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">AI Actions</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{actions.length}</p>
+                </div>
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-white text-xs font-medium">
-                  ✓ SOC2 Compliant
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">API Calls Today</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.api_calls_today}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 00-2-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">System Uptime</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.uptime}</p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
               </div>
             </div>
           </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Actions */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Recent AI Actions</h2>
+              <button
+                onClick={simulateAction}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Simulate Action
+              </button>
+            </div>
+            
+            {loading ? (
+              <div className="text-center py-8 text-slate-500">Loading actions...</div>
+            ) : actions.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                No actions yet. Try simulating an action!
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {actions.slice(0, 5).map((action) => (
+                  <div key={action.id} className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-700/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-white">{action.action}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {new Date(action.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      action.status === 'completed' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    }`}>
+                      {action.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Service Connections */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Service Connections</h2>
+              <button className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">
+                Add Connection
+              </button>
+            </div>
+            
+            {connections.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 mb-4">No service connections yet</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">
+                  Connect your favorite services to enable AI automation
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {connections.map((connection) => (
+                  <div key={connection.id} className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-700/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-white">{connection.service_name}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{connection.service_type}</p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      connection.status === 'active' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
+                      {connection.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/50 dark:bg-slate-800/80 dark:border-slate-700/50">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-6">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button className="p-4 text-left bg-slate-50/50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-600/50 transition-colors">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mb-3">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="font-medium text-slate-900 dark:text-white mb-1">Send Email</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Let AI compose and send emails</p>
+            </button>
+
+            <button className="p-4 text-left bg-slate-50/50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-600/50 transition-colors">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center mb-3">
+                <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <h3 className="font-medium text-slate-900 dark:text-white mb-1">Create Task</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Add tasks to your project boards</p>
+            </button>
+
+            <button className="p-4 text-left bg-slate-50/50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-600/50 transition-colors">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center mb-3">
+                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 00-2-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="font-medium text-slate-900 dark:text-white mb-1">Generate Report</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Create automated reports</p>
+            </button>
+          </div>
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }

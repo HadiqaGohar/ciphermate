@@ -130,8 +130,8 @@ async def validate_configuration_changes():
     try:
         # Test 1: Verify dependencies are updated
         try:
-            import agents
-            from agents import OpenAIChatCompletionsModel, AsyncOpenAI
+            import openai_agents
+            from openai_agents import OpenAIChatCompletionsModel, AsyncOpenAI
             print("   ✅ OpenAI Agents SDK dependencies available")
         except ImportError as e:
             print(f"   ❌ Missing OpenAI Agents SDK dependency: {e}")

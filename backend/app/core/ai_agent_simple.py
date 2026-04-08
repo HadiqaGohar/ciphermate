@@ -6,7 +6,7 @@ from enum import Enum
 from dataclasses import dataclass
 import re
 
-from agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
+from openai_agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

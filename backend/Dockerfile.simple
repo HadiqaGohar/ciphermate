@@ -1,21 +1,23 @@
-# Simple Dockerfile for Cloud Run deployment testing
 FROM python:3.11-slim
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PORT=8080
 
 WORKDIR /app
 
-# Install minimal dependencies
-RUN pip install --no-cache-dir fastapi uvicorn[standard]
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+ENV DISABLE_DATABASE=true
+ENV DISABLE_REDIS=true
+ENV DISABLE_AGENTS=true
 
-# Copy only essential files
-COPY simple_main.py ./
+# Copy requirements and install
+COPY requirements_simple.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app code
+COPY app/ ./app/
 
 # Expose port
 EXPOSE 8080
 
-# Run the simple application
-CMD ["python", "-c", "import uvicorn; uvicorn.run('simple_main:app', host='0.0.0.0', port=int(__import__('os').environ.get('PORT', 8080)))"]
+# Run the application
+CMD ["python", "-m", "uvicorn", "app.main_simple:app", "--host", "0.0.0.0", "--port", "8080"]

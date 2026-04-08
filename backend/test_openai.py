@@ -4,7 +4,7 @@
 import os
 import asyncio
 from dotenv import load_dotenv
-from agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
+from openai_agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
 
 async def test_gemini_agents_sdk():
     # Load environment variables

@@ -8,7 +8,7 @@ sys.path.append('.')
 print("🧪 Testing Agents SDK import...")
 
 try:
-    from agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
+    from openai_agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompletionsModel
     print("✅ Agents SDK imported successfully!")
     
     # Test basic functionality

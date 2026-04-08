@@ -13,8 +13,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
+    gcc g++ build-essential python3-dev libpq-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
