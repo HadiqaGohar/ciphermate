@@ -8,6 +8,12 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
+    connect_args={
+        "ssl": "require",
+        "server_settings": {
+            "application_name": "CipherMate Backend",
+        }
+    } if "neon.tech" in settings.DATABASE_URL else {}
 )
 
 # Create async session factory

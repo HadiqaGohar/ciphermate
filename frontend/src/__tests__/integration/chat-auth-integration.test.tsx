@@ -11,7 +11,7 @@ import ChatInterface from '../../components/chat/ChatInterface';
 // Mock Auth0 NextJS SDK
 jest.mock('@auth0/nextjs-auth0', () => ({
   useUser: jest.fn(),
-  UserProvider: ({ children }: { children: React.ReactNode }) => children,
+  Auth0Provider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock Next.js router

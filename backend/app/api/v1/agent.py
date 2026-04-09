@@ -445,3 +445,65 @@ async def _get_user_permissions(db: AsyncSession, user_id: int) -> List[Dict[str
 
 
 # Note: I removed the duplicate `execute_action_demo` standalone function and the broken fallback code.
+
+
+@router.get("/demo/stats")
+async def get_demo_stats():
+    """Get demo statistics for dashboard"""
+    return {
+        "total_users": 1,
+        "total_connections": 3,
+        "total_actions": 12,
+        "total_tokens": 5,
+        "uptime": "99.9%",
+        "api_calls_today": 247,
+        "active_agents": 1
+    }
+
+
+@router.post("/demo/simulate-action")
+async def simulate_action(action_type: str = "email"):
+    """Simulate an action for demo purposes"""
+    import random
+    from datetime import datetime
+    
+    action_types = ["email_send", "calendar_create", "github_issue", "slack_message"]
+    selected_action = action_type if action_type in action_types else random.choice(action_types)
+    
+    return {
+        "id": random.randint(1000, 9999),
+        "action": selected_action,
+        "status": "completed",
+        "created_at": datetime.now().isoformat(),
+        "result": f"Successfully executed {selected_action} action"
+    }
+
+
+@router.get("/connections")
+async def get_demo_connections():
+    """Get demo connections for dashboard"""
+    from datetime import datetime, timedelta
+    
+    return [
+        {
+            "id": "conn_1",
+            "service_name": "Google Calendar",
+            "service_type": "calendar",
+            "status": "active",
+            "created_at": (datetime.now() - timedelta(days=5)).isoformat()
+        },
+        {
+            "id": "conn_2", 
+            "service_name": "Gmail",
+            "service_type": "email",
+            "status": "active",
+            "created_at": (datetime.now() - timedelta(days=3)).isoformat()
+        },
+        {
+            "id": "conn_3",
+            "service_name": "GitHub",
+            "service_type": "development",
+            "status": "active", 
+            "created_at": (datetime.now() - timedelta(days=1)).isoformat()
+        }
+    ]

@@ -1,39 +1,45 @@
 'use client';
 
-import { useUser } from '@auth0/nextjs-auth0';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginButton() {
-  const { user, error, isLoading } = useUser();
+  const { user, error, isLoading } = useAuth();
 
-  if (isLoading) return (
-    <div className="bg-white border-2 border-black px-4 py-2">
-      <span className="text-black text-xs font-bold uppercase tracking-wide">LOADING...</span>
-    </div>
-  );
-  
-  if (error) return (
-    <div className="bg-red-500 border-2 border-black px-4 py-2">
-      <span className="text-white text-xs font-bold uppercase tracking-wide">ERROR</span>
-    </div>
-  );
+  const handleLogout = async () => {
+    try {
+      // Clear any client-side storage
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Redirect to logout endpoint
+      window.location.href = '/api/auth/logout';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback: still redirect to logout
+      window.location.href = '/api/auth/logout';
+    }
+  };
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
 
   if (user) {
     return (
-      <a
-        href="/api/auth/logout"
-        className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 font-black text-sm uppercase tracking-wider transition-all duration-300 transform hover:scale-105 shadow-lg border-4 border-black"
+      <button 
+        onClick={handleLogout}
+        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
       >
         LOGOUT
-      </a>
+      </button>
     );
   }
 
   return (
-    <a
-      href="/api/auth/login"
-      className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 font-black text-sm uppercase tracking-wider transition-all duration-300 transform hover:scale-105 shadow-lg border-4 border-black"
+    <button 
+      onClick={() => window.location.href = '/api/auth/login'}
+      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors duration-200"
     >
       LOGIN
-    </a>
+    </button>
   );
 }

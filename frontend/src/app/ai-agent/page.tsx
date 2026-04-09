@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { useAuth } from "@/hooks/useAuth";
+
+// API base URL from environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface AgentAction {
   id: number;
@@ -19,7 +23,7 @@ export default function AIAgentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAction, setSelectedAction] = useState<AgentAction | null>(null);
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -72,7 +76,7 @@ export default function AIAgentPage() {
   async function fetchActions() {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/v1/agent/actions");
+      const response = await fetch(`${API_BASE_URL}/api/v1/agent/actions`);
       if (response.ok) {
         const data = await response.json();
         if (data.actions && Array.isArray(data.actions)) {
@@ -137,20 +141,22 @@ export default function AIAgentPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading AI Agent Dashboard...</p>
+      <DashboardLayout user={user}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading AI Agent Dashboard...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <DashboardLayout user={user}>
+      <div className="space-y-8">
         {/* Header */}
-        <div className="mb-8 text-center">
+        <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             🤖 AI Agent Dashboard
           </h1>
@@ -160,7 +166,7 @@ export default function AIAgentPage() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
@@ -354,9 +360,9 @@ export default function AIAgentPage() {
         )}
 
         {/* Back to Dashboard */}
-        <div className="mt-6 flex justify-center">
+        <div className="flex justify-center">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => window.location.href = "/dashboard"}
             className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-3 rounded-lg text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-all flex items-center gap-2 shadow-sm"
           >
             <span>←</span>
@@ -364,6 +370,6 @@ export default function AIAgentPage() {
           </button>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -1,10 +1,16 @@
-// Mock auth0 for hackathon
-export const auth0 = {
-  getSession: () => Promise.resolve({
-    user: {
-      sub: 'mock-user-123',
-      email: 'test@example.com',
-      name: 'Test User'
-    }
-  })
-};
+// Auth0 configuration - re-export available functions
+
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+// Client-side exports
+export {
+  getAccessToken,
+  useUser,
+  withPageAuthRequired,
+} from "@auth0/nextjs-auth0";
+
+// Server-side exports
+export { Auth0Client } from "@auth0/nextjs-auth0/server";
+
+// Create a simple auth client instance
+export const auth0Client = new Auth0Client();

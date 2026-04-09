@@ -349,7 +349,6 @@ export async function checkAuth0ServiceAvailability(): Promise<boolean> {
 export async function refreshAccessTokenWithRetry(
   maxRetries: number = 3
 ): Promise<string | null> {
-  let lastError: any = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -376,7 +375,6 @@ export async function refreshAccessTokenWithRetry(
 
       throw new Error("Token refresh returned null");
     } catch (error) {
-      lastError = error;
       console.error(`Token refresh attempt ${attempt + 1} failed:`, error);
 
       // Don't retry on certain errors

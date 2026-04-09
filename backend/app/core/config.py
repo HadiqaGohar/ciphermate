@@ -46,11 +46,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS Configuration
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://localhost:3000",
-    ]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,https://localhost:3000"
+    
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Get ALLOWED_ORIGINS as a list"""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
     
     # Security Configuration
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = 60

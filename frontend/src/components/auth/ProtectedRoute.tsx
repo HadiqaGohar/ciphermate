@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@auth0/nextjs-auth0';
+import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
-  const { user, error, isLoading } = useUser();
+  const { user, error, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {

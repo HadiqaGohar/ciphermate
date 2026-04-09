@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+// API base URL from environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 interface Permission {
   id: number;
   service_name: string;
@@ -36,7 +39,7 @@ export default function PermissionDashboard() {
     try {
       setIsLoading(true);
       // For demo, using public endpoint
-      const response = await fetch("/api/v1/permissions/public");
+      const response = await fetch(`${API_BASE_URL}/api/v1/permissions/public`);
       if (!response.ok) {
         if (response.status === 404) {
           // Endpoint doesn't exist, use mock data for demo

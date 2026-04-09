@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import ChatInterface from "@/components/chat/ChatInterface";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 
 export default async function ChatPage() {
   try {
@@ -24,32 +25,19 @@ export default async function ChatPage() {
     // }
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <header className="bg-white dark:bg-gray-800 shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <div className="flex items-center">
-                <a
-                  href="/dashboard"
-                  className="text-blue-600 hover:text-blue-800 mr-4"
-                >
-                  ← Back to Dashboard
-                </a>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  🤖 AI Chat Assistant
-                </h1>
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {user?.name || "User"}
-              </div>
-            </div>
+      <DashboardLayout user={user}>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              🤖 AI Chat Assistant
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Secure AI assistant with encrypted conversations
+            </p>
           </div>
-        </header>
-
-        <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <ChatInterface user={user} session={session} />
-        </main>
-      </div>
+        </div>
+      </DashboardLayout>
     );
   } catch (error) {
     console.error("Error in ChatPage:", error);

@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { useAuth } from "@/hooks/useAuth";
+
+// API base URL from environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface Token {
   id: string;
@@ -21,7 +25,7 @@ export default function TokenVaultPage() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchTokens();
@@ -31,7 +35,7 @@ export default function TokenVaultPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch("/api/v1/token-vault/list");
+      const response = await fetch(`${API_BASE_URL}/api/v1/token-vault/list`);
       if (!response.ok) throw new Error("Failed to fetch tokens");
       const data = await response.json();
       setTokens(data.tokens || []);
@@ -130,32 +134,32 @@ export default function TokenVaultPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading tokens...</p>
+      <DashboardLayout user={user}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading tokens...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error && tokens.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-red-700 dark:text-red-400">Error: {error}</p>
-          </div>
+      <DashboardLayout user={user}>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-700 dark:text-red-400">Error: {error}</p>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+    <DashboardLayout user={user}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             🔐 Token Vault
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
@@ -165,7 +169,7 @@ export default function TokenVaultPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <p className="text-red-700 dark:text-red-400">Error: {error}</p>
           </div>
         )}
@@ -283,7 +287,7 @@ export default function TokenVaultPage() {
         )}
 
         {/* Auth0 Token Vault Info */}
-        <div className="mt-8 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
@@ -317,18 +321,7 @@ export default function TokenVaultPage() {
             </div>
           </div>
         </div>
-
-        {/* Back to Dashboard */}
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-3 rounded-lg text-gray-900 dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-all flex items-center gap-2"
-          >
-            <span>←</span>
-            Back to Dashboard
-          </button>
-        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

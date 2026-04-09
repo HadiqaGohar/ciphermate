@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import AuditDashboard from "@/components/audit/AuditDashboard";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 
 export default async function AuditPage() {
   const cookieStore = await cookies();
@@ -21,19 +22,18 @@ export default async function AuditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Audit Dashboard
+    <DashboardLayout user={user}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            📊 Audit Dashboard
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400">
             Monitor all AI agent activities and security events in real-time
           </p>
         </div>
-
         <AuditDashboard user={user} />
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -23,7 +23,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen flex flex-col`} suppressHydrationWarning>
+      <body
+        className={`${inter.className} min-h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
         <ServiceUnavailableHandler
           showRetryButton={true}
           autoRetryInterval={60000} // 1 minute

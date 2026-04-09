@@ -1,138 +1,175 @@
 #!/usr/bin/env python3
 """
-Test script to verify if a Gemini API key is working correctly.
+Test Gemini API key with both REST API and Agents SDK
 """
 
 import os
 import sys
+import asyncio
 import requests
 import json
-from typing import Optional
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
-def test_gemini_api_key(api_key: Optional[str] = None) -> bool:
-    """
-    Test if the Gemini API key is valid and working.
+def test_gemini_rest_api(api_key: str) -> dict:
+    """Test using direct REST API (more reliable for debugging)"""
     
-    Args:
-        api_key: The API key to test. If None, will try to get from environment.
-        
-    Returns:
-        bool: True if API key is working, False otherwise.
-    """
+    print("\n🔍 TEST 1: Direct REST API Call")
+    print("-" * 40)
     
-    # Get API key from parameter or environment
-    if not api_key:
-        api_key = os.getenv('GEMINI_API_KEY')
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
     
-    if not api_key:
-        print("❌ No API key provided. Set GEMINI_API_KEY environment variable or pass as argument.")
-        return False
-    
-    # Gemini API endpoint for text generation (using the correct model name)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    
-    # Simple test payload
     payload = {
         "contents": [{
             "parts": [{
-                "text": "Hello, this is a test. Please respond with 'API key is working'."
+                "text": "Say exactly 'API is working' and nothing else."
             }]
         }]
     }
     
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
     try:
-        print("🔍 Testing Gemini API key...")
-        print(f"🔑 API Key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
+        response = requests.post(url, json=payload, timeout=30)
         
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        print(f"Status Code: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            
-            # Check if we got a valid response
-            if 'candidates' in data and len(data['candidates']) > 0:
-                content = data['candidates'][0].get('content', {})
-                parts = content.get('parts', [])
-                
-                if parts and len(parts) > 0:
-                    response_text = parts[0].get('text', '')
-                    print("✅ API key is working!")
-                    print(f"📝 Response: {response_text.strip()}")
-                    return True
-                else:
-                    print("❌ API returned empty response")
-                    return False
+            if 'candidates' in data and data['candidates']:
+                text = data['candidates'][0]['content']['parts'][0]['text']
+                print(f"✅ REST API SUCCESS")
+                print(f"Response: {text}")
+                return {"success": True, "response": text}
             else:
-                print("❌ API returned invalid response structure")
-                print(f"Response: {json.dumps(data, indent=2)}")
-                return False
-                
-        elif response.status_code == 400:
-            print("❌ Bad request - API key might be invalid or request malformed")
-            print(f"Error: {response.text}")
-            return False
-            
-        elif response.status_code == 403:
-            print("❌ Forbidden - API key is invalid or doesn't have permission")
-            print(f"Error: {response.text}")
-            return False
-            
+                print(f"❌ Invalid response structure")
+                print(json.dumps(data, indent=2))
+                return {"success": False, "error": "Invalid response"}
+        
         elif response.status_code == 429:
-            print("❌ Rate limit exceeded - API key is valid but quota exceeded")
-            print(f"Error: {response.text}")
-            return False
-            
+            print(f"❌ QUOTA EXCEEDED - Your API key has no remaining quota")
+            print(f"Response: {response.text}")
+            return {"success": False, "error": "quota_exceeded"}
+        
+        elif response.status_code == 403:
+            print(f"❌ INVALID API KEY")
+            print(f"Response: {response.text}")
+            return {"success": False, "error": "invalid_key"}
+        
         else:
-            print(f"❌ API request failed with status code: {response.status_code}")
-            print(f"Error: {response.text}")
-            return False
+            print(f"❌ HTTP Error: {response.status_code}")
+            print(f"Response: {response.text}")
+            return {"success": False, "error": f"http_{response.status_code}"}
             
-    except requests.exceptions.Timeout:
-        print("❌ Request timed out - check your internet connection")
-        return False
+    except Exception as e:
+        print(f"❌ Exception: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def test_gemini_agents_sdk(api_key: str) -> dict:
+    """Test using Agents SDK"""
+    
+    print("\n🔍 TEST 2: Agents SDK Call")
+    print("-" * 40)
+    
+    try:
+        from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel
         
-    except requests.exceptions.ConnectionError:
-        print("❌ Connection error - check your internet connection")
-        return False
+        client = AsyncOpenAI(
+            api_key=api_key,  # Use actual key variable
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            timeout=30.0
+        )
         
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Request failed: {str(e)}")
-        return False
+        model = OpenAIChatCompletionsModel(
+            model="gemini-3-flash-preview", 
+            openai_client=client
+        )
+        
+        agent = Agent(
+            name="test", 
+            instructions="Say exactly 'Agents SDK is working' and nothing else.", 
+            model=model
+        )
+        
+        async def run_test():
+            result = await Runner.run(agent, "Say the phrase")
+            return result.final_output
+        
+        response = asyncio.run(run_test())
+        print(f"✅ Agents SDK SUCCESS")
+        print(f"Response: {response}")
+        return {"success": True, "response": response}
+        
+    except ImportError:
+        print(f"❌ Agents SDK not installed")
+        print(f"   Install with: pip install openai-agents")
+        return {"success": False, "error": "agents_sdk_not_installed"}
         
     except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
-        return False
+        print(f"❌ Agents SDK Error: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 
 def main():
-    """Main function to run the API key test."""
+    print("🚀 Gemini API Diagnostic Tool")
+    print("=" * 50)
     
-    print("🚀 Gemini API Key Tester")
-    print("=" * 40)
+    # Get API key from environment
+    api_key = os.getenv('GEMINI_API_KEY')
     
-    # Check if API key is provided as command line argument
-    api_key = None
-    if len(sys.argv) > 1:
-        api_key = sys.argv[1]
-    
-    # Test the API key
-    success = test_gemini_api_key(api_key)
-    
-    if success:
-        print("\n🎉 Your Gemini API key is working correctly!")
-        sys.exit(0)
-    else:
-        print("\n💡 Tips:")
-        print("   - Make sure your API key is correct")
-        print("   - Check if the API key has the necessary permissions")
-        print("   - Verify your internet connection")
-        print("   - Check if you have remaining quota")
+    if not api_key:
+        print("\n❌ GEMINI_API_KEY not found in environment!")
+        print("\n💡 Fix: Create a .env file with:")
+        print("   GEMINI_API_KEY=your_actual_api_key_here")
+        print("\n   Or set environment variable:")
+        print("   export GEMINI_API_KEY='your_key'")
         sys.exit(1)
+    
+    print(f"\n✅ Found API Key: {api_key[:10]}...{api_key[-4:]}")
+    
+    # Test REST API first
+    rest_result = test_gemini_rest_api(api_key)
+    
+    # Test Agents SDK
+    agents_result = test_gemini_agents_sdk(api_key)
+    
+    # Summary
+    print("\n" + "=" * 50)
+    print("📊 SUMMARY")
+    print("=" * 50)
+    
+    if rest_result["success"]:
+        print("✅ REST API: Working")
+    else:
+        print(f"❌ REST API: {rest_result.get('error', 'Failed')}")
+    
+    if agents_result["success"]:
+        print("✅ Agents SDK: Working")
+    else:
+        print(f"❌ Agents SDK: {agents_result.get('error', 'Failed')}")
+    
+    # Recommendations
+    print("\n💡 RECOMMENDATIONS:")
+    
+    if rest_result.get("error") == "quota_exceeded":
+        print("   ⚠️ Your API key has EXCEEDED QUOTA!")
+        print("   → Get a new API key from: https://aistudio.google.com/apikey")
+        print("   → Or enable billing on your Google Cloud project")
+        
+    elif not rest_result["success"]:
+        print("   ⚠️ Your API key is INVALID or NOT WORKING!")
+        print("   → Generate a new key at: https://aistudio.google.com/apikey")
+        print("   → Make sure Gemini API is enabled")
+        
+    elif rest_result["success"] and not agents_result["success"]:
+        print("   ⚠️ REST API works but Agents SDK fails")
+        print("   → Install agents SDK: pip install openai-agents")
+        print("   → Check agents SDK version compatibility")
+        
+    else:
+        print("   ✅ Everything is working correctly!")
+        print("   → Your CipherMate AI should work now")
 
 
 if __name__ == "__main__":

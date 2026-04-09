@@ -35,7 +35,8 @@ def setup_agents_config():
         
         # Setup model
         model = OpenAIChatCompletionsModel(
-            model="gemini-2.5-flash",
+            # model="gemini-2.5-flash",
+            model = "gemini-3-flash-preview",
             openai_client=external_client,
         )
         
