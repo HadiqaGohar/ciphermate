@@ -3,6 +3,9 @@ import { cookies } from 'next/headers';
 import PermissionDashboard from '@/components/permissions/PermissionDashboard';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
+// Force dynamic rendering for this route (fixes Vercel deployment)
+export const dynamic = "force-dynamic";
+
 export default async function PermissionsPage() {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('appSession');

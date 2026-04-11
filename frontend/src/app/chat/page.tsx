@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import ChatInterface from "@/components/chat/ChatInterface";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 
+// Force dynamic rendering for this route (fixes Vercel deployment)
+export const dynamic = "force-dynamic";
+
 export default async function ChatPage() {
   try {
     const cookieStore = await cookies();
