@@ -6,6 +6,7 @@ from app.core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
+    # // done hadiqa
 
 class SessionManager:
     """Manage user sessions with Redis"""

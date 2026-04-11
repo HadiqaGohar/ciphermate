@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 from sqlalchemy.exc import SQLAlchemyError
+    # // done hadiqa
 
 from .core.config import settings
 from .core.database import engine, Base

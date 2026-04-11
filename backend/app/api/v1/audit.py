@@ -235,3 +235,5 @@ async def get_security_events(
     except Exception as e:
         logger.error(f"Error getting security events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+            # // done hadiqa

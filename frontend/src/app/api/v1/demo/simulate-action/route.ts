@@ -22,3 +22,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to simulate action' }, { status: 500 });
   }
 }
+// done hadiqa

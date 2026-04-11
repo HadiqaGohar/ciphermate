@@ -48,3 +48,6 @@ async def api_root():
 async def api_status():
     """API status endpoint"""
     return {"status": "operational", "version": "1.0.0"}
+
+
+        # // done hadiqa

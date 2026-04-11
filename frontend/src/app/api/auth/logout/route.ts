@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
       `returnTo=${encodeURIComponent(process.env.AUTH0_BASE_URL || 'http://localhost:3000')}`;
     
     const response = NextResponse.redirect(logoutUrl);
-    
+    // done hadiqa
+
     // Clear all authentication-related cookies
     const cookiesToClear = [
       'appSession',

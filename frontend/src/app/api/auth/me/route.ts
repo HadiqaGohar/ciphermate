@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
         { status: 200 }
       );
     }
+// done hadiqa
 
     try {
       const session = JSON.parse(sessionCookie.value);

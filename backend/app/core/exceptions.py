@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+    # // done hadiqa
 
 class ErrorDetail(BaseModel):
     """Detailed error information"""

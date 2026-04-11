@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker deployment
+  // Enable standalone output for Docker deployment     # // done hadiqa
   output: 'standalone',
   
   // Optimize images - updated for Next.js 16

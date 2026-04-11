@@ -13,6 +13,7 @@ from ...core.audit_service import audit_service
 from ...core.exceptions import CipherMateException
 
 router = APIRouter(prefix="/security", tags=["security"])
+    # // done hadiqa
 
 
 class SecurityStatusResponse(BaseModel):

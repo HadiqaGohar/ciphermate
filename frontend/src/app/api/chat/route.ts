@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Try the backend endpoint
     try {
-      console.log("🚀 Calling backend:", `${BACKEND_URL}/api/v1/agent/chat`);
+      console.log("🚀 Calling backend:", `${BACKEND_URL}/api/v1/ai-agent/chat`);
       console.log("📤 Sending message:", body.message);
 
       // Test backend connectivity first
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ Backend health check passed");
 
-      const backendResponse = await fetch(`${BACKEND_URL}/api/v1/agent/chat`, {
+      const backendResponse = await fetch(`${BACKEND_URL}/api/v1/ai-agent/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -203,3 +203,5 @@ export async function POST(request: NextRequest) {
     });
   }
 }
+
+// done hadiqa

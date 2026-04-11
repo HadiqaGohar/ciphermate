@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         security_events: []
       });
     }
+// done hadiqa
 
     const data = await response.json();
     

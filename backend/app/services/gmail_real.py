@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
+    # // done hadiqa
 
 logger = logging.getLogger(__name__)
 

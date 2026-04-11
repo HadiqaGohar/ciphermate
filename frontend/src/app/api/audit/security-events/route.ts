@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         has_next: false
       });
     }
+// done hadiqa
 
     const data = await response.json();
     

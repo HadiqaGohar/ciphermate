@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/json',
       },
     });
+// done hadiqa
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

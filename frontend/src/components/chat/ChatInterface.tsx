@@ -9,6 +9,7 @@ import { LoadingIndicator } from "./LoadingIndicator";
 
 // Remove Auth0 import to avoid SSR issues
 // import { useUser } from "@auth0/nextjs-auth0";
+// done hadiqa
 
 export interface Message {
   id: string;
