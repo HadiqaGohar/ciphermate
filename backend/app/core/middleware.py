@@ -18,7 +18,6 @@ from .security_monitor import security_monitor, security_metrics
 from .config import settings
 
 logger = logging.getLogger(__name__)
-    # // done hadiqa
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

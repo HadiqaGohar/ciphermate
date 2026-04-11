@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings
 from typing import List
 import os
 
-    # // done hadiqa
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -11,7 +10,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "CipherMate"
     APP_ENV: str = "development"
     DEBUG: bool = True
-    APP_BASE_URL: str = "http://localhost:8000"
+    APP_BASE_URL: str = "http://localhost:8080"
     
     # Database Configuration
     DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/ciphermate"

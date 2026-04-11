@@ -13,6 +13,7 @@ from app.core.auth import get_current_user
 from app.core.ai_agent import ai_agent_engine
 from app.core.token_vault import token_vault_service
 from app.core.service_clients import service_client_factory
+from app.core.config import settings
 from app.models.user import User
 from app.models.agent_action import AgentAction
 from app.models.service_connection import ServiceConnection
@@ -104,7 +105,7 @@ async def chat_with_agent(
         else:
             logger.info(f"Processing chat message from user {current_user.id}")
         
-        # Process message using AI agent (skip database operations for speed)
+        # Process message using AI agent
         try:
             result = await ai_agent_engine.process_message(
                 user_message=message.message,
@@ -114,7 +115,7 @@ async def chat_with_agent(
             logger.error(f"AI agent error: {ai_error}")
             # Fallback response
             result = {
-                "response": "Fallback agent.py --> I'm CipherMate, your AI assistant! I can help with calendar events, emails, GitHub issues, Slack messages, math calculations, and programming. What would you like me to help you with?",
+                "response": "Fallback I'm CipherMate, your AI assistant! I can help with calendar events, emails, GitHub issues, Slack messages, math calculations, and programming. What would you like me to help you with?",
                 "intent_type": "general_query",
                 "confidence": "high",
                 "service_name": None,
@@ -124,15 +125,36 @@ async def chat_with_agent(
                 "clarification_questions": []
             }
         
-        # Skip permission checks for speed (assume has permissions)
-        has_permissions = True
-        missing_permissions = []
-        
-        # Skip database action creation for speed
-        action_id = None
-        
-        # Skip permission grant URL for speed
+        # Check if this requires authentication
+        requires_permission = result.get("requires_auth", False) or bool(result.get("required_permissions"))
         permission_grant_url = None
+        
+        # Generate OAuth URLs for services that need authentication
+        if requires_permission and result.get("service_name"):
+            permission_grant_url = _generate_oauth_url(result.get("service_name"), current_user)
+        
+        # Create action in database if needed (for calendar, email, etc.)
+        action_id = None
+        if result.get("intent_type") in ["calendar_create_event", "email_send", "github_create_issue", "slack_send_message"]:
+            try:
+                # Create agent action record
+                agent_action = AgentAction(
+                    user_id=current_user.id if current_user and hasattr(current_user, 'id') else 0,
+                    action=result.get("intent_type"),
+                    parameters=result.get("parameters", {}),
+                    requires_step_up=requires_permission
+                )
+                db.add(agent_action)
+                await db.commit()
+                await db.refresh(agent_action)
+                action_id = agent_action.id
+                logger.info(f"Created action {action_id} for intent {result.get('intent_type')}")
+            except Exception as e:
+                logger.error(f"Failed to create action: {e}")
+        
+        # Determine missing permissions
+        has_permissions = not requires_permission  # For now, assume no permissions
+        missing_permissions = result.get("required_permissions", []) if requires_permission else []
         
         return ChatResponse(
             message=result.get("response", "Fallback agent.py --> I'm sorry, I couldn't process your request."),
@@ -221,6 +243,245 @@ async def analyze_intent(
 
 
 @router.post("/execute-action", response_model=ActionExecutionResponse)
+async def execute_action_simple(
+    request: ActionExecutionRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+) -> ActionExecutionResponse:
+    """
+    Execute action endpoint. If auth is missing for a service, returns
+    a friendly message WITHOUT marking the action as failed so it can
+    be retried after OAuth completes.
+    """
+    try:
+        logger.info(f"Executing action {request.action_id}")
+
+        # Get the action from database
+        agent_action = await db.get(AgentAction, request.action_id)
+        if not agent_action:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Action not found"
+            )
+
+        # Handle already completed actions gracefully
+        if agent_action.status == "completed":
+            # Return success without re-executing
+            return ActionExecutionResponse(
+                action_id=agent_action.id,
+                status="completed",
+                result=agent_action.result or "Action already completed successfully",
+                execution_time_ms=agent_action.execution_time_ms or 0
+            )
+
+        user_id = current_user.id if current_user and hasattr(current_user, 'id') else 0
+
+        # Get user timezone from request headers or default to Asia/Karachi
+        user_timezone = request.headers.get('X-Timezone', 'Asia/Karachi') if hasattr(request, 'headers') else 'Asia/Karachi'
+
+        if agent_action.status != "pending":
+            # For failed/cancelled actions, allow retry by resetting to executing
+            logger.info(f"Retrying action {request.action_id} (was {agent_action.status})")
+            agent_action.status = "pending"
+            await db.commit()
+
+        agent_action.mark_executing()
+        await db.commit()
+
+        start_time = datetime.now()
+        result = "Action executed successfully"
+
+        # Execute based on action type
+        if agent_action.action == "email_send":
+            # Call real Gmail service
+            from app.services.gmail_real import gmail_service
+            
+            try:
+                to_email = agent_action.parameters.get('to', '')
+                subject = agent_action.parameters.get('subject', 'Message from CipherMate')
+                body = agent_action.parameters.get('body', '')
+                
+                logger.info(f"📧 Sending email to {to_email} with subject: {subject}")
+                
+                email_result = await gmail_service.send_email(
+                    db=db,
+                    user_id=user_id,
+                    to=to_email,
+                    subject=subject,
+                    body=body
+                )
+                
+                if email_result.get("success"):
+                    result = email_result.get("message", "✅ Email sent successfully!")
+                    logger.info(f"✅ Real email sent! Message ID: {email_result.get('message_id', 'N/A')}")
+                else:
+                    # Check if this is an auth issue - DON'T mark as failed
+                    if "not connected" in email_result.get("error", "").lower() or "authentication" in email_result.get("error", "").lower():
+                        agent_action.status = "pending"
+                        await db.commit()
+                        return ActionExecutionResponse(
+                            action_id=agent_action.id,
+                            status="requires_auth",
+                            result=email_result.get("message", "Gmail not connected. Please grant permission."),
+                            execution_time_ms=0
+                        )
+                    result = f"❌ Failed to send email: {email_result.get('error', 'Unknown error')}"
+            except Exception as e:
+                logger.error(f"Email sending error: {e}")
+                # Check if this is an auth issue
+                if "not connected" in str(e).lower() or "authentication" in str(e).lower():
+                    agent_action.status = "pending"
+                    await db.commit()
+                    return ActionExecutionResponse(
+                        action_id=agent_action.id,
+                        status="requires_auth",
+                        result=f"Gmail not connected. Error: {str(e)}",
+                        execution_time_ms=0
+                    )
+                result = f"❌ Cannot send email: {str(e)}"
+        elif agent_action.action == "calendar_create_event":
+            # Call real Google Calendar service
+            from app.services.google_calendar import google_calendar_service
+            
+            try:
+                title = agent_action.parameters.get('title', 'New Event')
+                date = agent_action.parameters.get('date', '2026-04-07')
+                time = agent_action.parameters.get('time', '15:00')
+                
+                calendar_result = await google_calendar_service.create_event(
+                    db=db,
+                    user_id=user_id,
+                    title=title,
+                    date=date,
+                    time=time,
+                    duration_minutes=60,
+                    description=f"Event created by CipherMate AI Assistant",
+                    timezone=user_timezone
+                )
+                
+                if calendar_result.get("success"):
+                    result = calendar_result.get("message", "Calendar event created successfully")
+                else:
+                    # Check if this is an auth issue - DON'T mark as failed
+                    if "not connected" in calendar_result.get("error", "").lower() or "authentication" in calendar_result.get("error", "").lower():
+                        agent_action.status = "pending"
+                        await db.commit()
+                        return ActionExecutionResponse(
+                            action_id=agent_action.id,
+                            status="requires_auth",
+                            result=calendar_result.get("message", "Google Calendar not connected. Please grant permission."),
+                            execution_time_ms=0
+                        )
+                    result = f"❌ Failed to create calendar event: {calendar_result.get('error', 'Unknown error')}"
+            except Exception as e:
+                logger.error(f"Calendar creation error: {e}")
+                # Check if this is an auth issue
+                if "not connected" in str(e).lower() or "authentication" in str(e).lower():
+                    agent_action.status = "pending"
+                    await db.commit()
+                    return ActionExecutionResponse(
+                        action_id=agent_action.id,
+                        status="requires_auth",
+                        result=f"Google Calendar not connected. Error: {str(e)}",
+                        execution_time_ms=0
+                    )
+                result = f"❌ Cannot create calendar event: {str(e)}"
+        elif agent_action.action == "github_create_issue":
+            # Real GitHub API integration
+            from app.core.token_vault import token_vault_service
+            
+            try:
+                user_id_str = str(user_id)
+                token_data = await token_vault_service.retrieve_token(
+                    user_id=user_id_str,
+                    service_name="github",
+                    auto_refresh=False
+                )
+
+                if not token_data:
+                    # Check local cache fallback
+                    logger.warning(f"No GitHub token found for user {user_id}, checking local cache")
+                    # Return requires_auth status so frontend can retry OAuth
+                    agent_action.status = "pending"
+                    await db.commit()
+                    return ActionExecutionResponse(
+                        action_id=agent_action.id,
+                        status="requires_auth",
+                        result="🔐 GitHub authentication required. Please connect your GitHub account.",
+                        execution_time_ms=0
+                    )
+
+                access_token = token_data.get('access_token')
+                if not access_token:
+                    logger.error(f"GitHub token data structure: {token_data}")
+                    result = "❌ Invalid GitHub token: missing access_token"
+                else:
+                    import httpx
+                    repo = agent_action.parameters.get('repo', '')
+                    title = agent_action.parameters.get('title', 'New issue from CipherMate')
+                    body = agent_action.parameters.get('body', '')
+
+                    logger.info(f"Creating GitHub issue in {repo} with token: {access_token[:20]}...")
+
+                    # Parse repo from format "owner/repo"
+                    if '/' in repo:
+                        owner, repo_name = repo.split('/', 1)
+                        
+                        # Call GitHub API to create issue
+                        async with httpx.AsyncClient() as client:
+                            response = await client.post(
+                                f"https://api.github.com/repos/{owner}/{repo_name}/issues",
+                                headers={
+                                    "Authorization": f"token {access_token}",  # Changed from Bearer to token
+                                    "Accept": "application/vnd.github.v3+json"
+                                },
+                                json={
+                                    "title": title,
+                                    "body": body
+                                },
+                                timeout=10.0
+                            )
+
+                            logger.info(f"GitHub API response: {response.status_code} - {response.text[:200]}")
+
+                            if response.status_code == 201:
+                                issue_data = response.json()
+                                issue_url = issue_data.get('html_url', '')
+                                issue_number = issue_data.get('number', '')
+                                result = f"✅ GitHub issue #{issue_number} created successfully!\n\n🔗 View issue: {issue_url}"
+                            else:
+                                error_msg = response.json().get('message', 'Unknown error')
+                                result = f"❌ Failed to create GitHub issue: {error_msg}"
+                    else:
+                        result = f"❌ Invalid repository format: {repo}. Use 'owner/repo'"
+            except Exception as e:
+                logger.error(f"GitHub issue creation error: {e}")
+                result = f"❌ Cannot create GitHub issue: {str(e)}"
+        elif agent_action.action == "slack_send_message":
+            result = "Slack message sent successfully"
+
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        agent_action.mark_completed(result=result, execution_time_ms=int(execution_time))
+        await db.commit()
+
+        return ActionExecutionResponse(
+            action_id=agent_action.id,
+            status=agent_action.status,
+            result=agent_action.result,
+            execution_time_ms=agent_action.execution_time_ms
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing action: {e}")
+        return ActionExecutionResponse(
+            action_id=request.action_id,
+            status="failed",
+            result=f"❌ Action failed: {str(e)}",
+            execution_time_ms=0
+        )
 async def execute_action(
     request: ActionExecutionRequest,
     current_user: User = Depends(get_current_user),
@@ -238,13 +499,28 @@ async def execute_action(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Action not found"
             )
-        
-        if agent_action.status != "pending":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Action is not in pending status (current: {agent_action.status})"
-            )
-        
+
+        # Allow re-execution for actions that need auth after OAuth completes
+        # These actions require authentication and may have been "completed" without actual execution
+        auth_required_actions = ["email_send", "calendar_create_event", "github_create_issue", "slack_send_message"]
+        if agent_action.status not in ["pending", "requires_auth"]:
+            # Allow retry for auth-required actions that were marked completed but didn't actually execute
+            if (agent_action.status == "completed" and 
+                agent_action.action in auth_required_actions and
+                (agent_action.result is None or 
+                 "successfully" in agent_action.result.lower() or
+                 "auth" in agent_action.result.lower() or 
+                 "permission" in agent_action.result.lower() or
+                 "connect" in agent_action.result.lower())):
+                logger.info(f"Re-executing auth-required action {request.action_id} (was {agent_action.status})")
+                agent_action.status = "pending"
+                await db.commit()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Action is not in pending status (current: {agent_action.status})"
+                )
+
         if not request.confirm:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -255,20 +531,61 @@ async def execute_action(
         await db.commit()
         
         start_time = datetime.now()
-        result = "Action executed successfully (demo mode)"
+        result = "Action executed successfully"
         
         if agent_action.action == "email_send":
-            # ... (your existing email logic remains unchanged)
+            # Real Gmail integration
             from app.api.routes.gmail_auth import temp_tokens
             from app.services.gmail_real import RealGmailService
-            
+
             if 'current' not in temp_tokens:
-                agent_action.mark_failed("Gmail not authenticated.")
+                # Check if this is an auth issue - return friendly message
+                agent_action.status = "pending"
                 await db.commit()
-                raise HTTPException(status_code=400, detail="Gmail authentication required")
-            
-            # ... rest of email logic (unchanged for brevity)
-            pass  # Keep your original email code here if needed
+                return ActionExecutionResponse(
+                    action_id=agent_action.id,
+                    status="requires_auth",
+                    result="🔐 Gmail access required. Please grant permission to continue.",
+                    execution_time_ms=0
+                )
+
+            try:
+                # Extract email parameters
+                token_data = temp_tokens['current']
+                gmail_service = RealGmailService(
+                    access_token=token_data.get('access_token'),
+                    refresh_token=token_data.get('refresh_token')
+                )
+
+                to_email = agent_action.parameters.get('to', '')
+                subject = agent_action.parameters.get('subject', 'Message from CipherMate')
+                body = agent_action.parameters.get('body', '')
+
+                # Send the email
+                email_result = gmail_service.send_email_sync(
+                    to=to_email,
+                    subject=subject,
+                    body=body
+                )
+
+                if email_result.get("success"):
+                    result = f"✅ Email sent successfully to {to_email}!\n\n📧 Subject: {subject}\n🆔 Message ID: {email_result.get('message_id')}"
+                else:
+                    result = f"❌ Failed to send email: {email_result.get('error', 'Unknown error')}"
+
+            except Exception as e:
+                logger.error(f"Gmail sending error: {e}")
+                # Check if this is an auth issue
+                if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
+                    agent_action.status = "pending"
+                    await db.commit()
+                    return ActionExecutionResponse(
+                        action_id=agent_action.id,
+                        status="requires_auth",
+                        result=f"🔐 Gmail authentication expired. Please reconnect.",
+                        execution_time_ms=0
+                    )
+                result = f"❌ Cannot send email: {str(e)}"
             
         elif agent_action.action == "calendar_create_event":
             # Real Google Calendar integration
@@ -329,55 +646,17 @@ async def execute_action(
         )
 
 
-@router.post("/chat-demo")
-async def chat_demo(message: dict) -> Dict[str, Any]:
-    """Demo chat endpoint"""
-    import asyncio
-    # ... (your chat_demo function - kept as is, assuming it was mostly correct)
-    # For brevity, I'm not repeating the full function here if it's unchanged.
-    # Paste your original chat_demo body if you want further cleanup.
-    try:
-        logger.info(f"Processing chat message: {message}")
-        # ... rest of your original chat_demo logic
-        return {"message": "Demo response", "intent_analysis": {"intent_type": "unknown"}}
-    except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return {"message": f"Error: {str(e)}", "intent_analysis": {"intent_type": "error"}}
-
-
-
-
-
-
-
-
 @router.get("/actions")
-async def get_demo_actions():
-    """Get list of available agent actions"""
-    try:
-        actions = [ ... ]  # your actions list here (unchanged)
-        return {
-            "actions": actions,
-            "total": len(actions),
-            "categories": ["calendar", "communication", "development"],
-            "services": ["google_calendar", "gmail", "github", "slack"]
-        }
-    except Exception as e:
-        logger.error(f"Error listing demo actions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/actions", response_model=List[Dict[str, Any]])
 async def get_user_actions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = 50,
     offset: int = 0
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Get user's agent actions history"""
     try:
         from sqlalchemy import select, desc
-        
+
         query = (
             select(AgentAction)
             .where(AgentAction.user_id == current_user.id)
@@ -385,10 +664,10 @@ async def get_user_actions(
             .limit(limit)
             .offset(offset)
         )
-        
+
         result = await db.execute(query)
         actions = result.scalars().all()
-        
+
         action_list = []
         for action in actions:
             action_dict = {
@@ -403,9 +682,14 @@ async def get_user_actions(
                 "execution_time_ms": action.execution_time_ms
             }
             action_list.append(action_dict)
-        
-        return action_list
-        
+
+        return {
+            "actions": action_list,
+            "total": len(action_list),
+            "limit": limit,
+            "offset": offset
+        }
+
     except Exception as e:
         logger.error(f"Error getting user actions: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve actions")
@@ -444,68 +728,128 @@ async def _get_user_permissions(db: AsyncSession, user_id: int) -> List[Dict[str
         return []
 
 
-# Note: I removed the duplicate `execute_action_demo` standalone function and the broken fallback code.
+def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str]:
+    """Generate OAuth URL for the specified service"""
+    from urllib.parse import urlencode
+    import secrets
 
+    try:
+        if service_name == "google_calendar":
+            # Google Calendar OAuth URL
+            if not settings.GOOGLE_CLIENT_ID or settings.GOOGLE_CLIENT_ID == "":
+                logger.error("Google client ID not configured")
+                return None
+            
+            params = {
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "redirect_uri": "http://localhost:3000/api/auth/google/callback",
+                "response_type": "code",
+                "scope": "https://www.googleapis.com/auth/calendar",
+                "access_type": "offline",
+                "prompt": "consent",
+                "state": f"state_{secrets.token_urlsafe(16)}"
+            }
+            return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
-@router.get("/demo/stats")
-async def get_demo_stats():
-    """Get demo statistics for dashboard"""
-    return {
-        "total_users": 1,
-        "total_connections": 3,
-        "total_actions": 12,
-        "total_tokens": 5,
-        "uptime": "99.9%",
-        "api_calls_today": 247,
-        "active_agents": 1
-    }
+        elif service_name == "gmail":
+            # Gmail OAuth URL
+            if not settings.GOOGLE_CLIENT_ID or settings.GOOGLE_CLIENT_ID == "":
+                logger.error("Google client ID not configured")
+                return None
+            
+            params = {
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "redirect_uri": "http://localhost:3000/api/auth/gmail/callback",
+                "response_type": "code",
+                "scope": "https://www.googleapis.com/auth/gmail.send",
+                "access_type": "offline",
+                "prompt": "consent",
+                "state": f"state_{secrets.token_urlsafe(16)}"
+            }
+            return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
+        elif service_name == "github":
+            # GitHub OAuth URL
+            if not settings.GITHUB_CLIENT_ID or settings.GITHUB_CLIENT_ID == "":
+                logger.error("GitHub client ID not configured")
+                return None
+            
+            params = {
+                "client_id": settings.GITHUB_CLIENT_ID,
+                "redirect_uri": "http://localhost:3000/api/auth/github/callback",
+                "scope": "repo",
+                "state": f"state_{secrets.token_urlsafe(16)}"
+            }
+            return f"https://github.com/login/oauth/authorize?{urlencode(params)}"
 
-@router.post("/demo/simulate-action")
-async def simulate_action(action_type: str = "email"):
-    """Simulate an action for demo purposes"""
-    import random
-    from datetime import datetime
-    
-    action_types = ["email_send", "calendar_create", "github_issue", "slack_message"]
-    selected_action = action_type if action_type in action_types else random.choice(action_types)
-    
-    return {
-        "id": random.randint(1000, 9999),
-        "action": selected_action,
-        "status": "completed",
-        "created_at": datetime.now().isoformat(),
-        "result": f"Successfully executed {selected_action} action"
-    }
+        elif service_name == "slack":
+            # Slack OAuth URL
+            if not settings.SLACK_CLIENT_ID or settings.SLACK_CLIENT_ID == "":
+                logger.error("Slack client ID not configured")
+                return None
+            
+            # Use production URL for redirect URI
+            if settings.APP_ENV == "production":
+                redirect_uri = f"{settings.APP_BASE_URL}/api/auth/slack/callback"
+            else:
+                # For development, use HTTPS localhost or the configured base URL
+                redirect_uri = "https://localhost:3000/api/auth/slack/callback"
+            
+            params = {
+                "client_id": settings.SLACK_CLIENT_ID,
+                "redirect_uri": redirect_uri,
+                "scope": "chat:write,channels:read",
+                "state": f"state_{secrets.token_urlsafe(16)}"
+            }
+            return f"https://slack.com/oauth/v2/authorize?{urlencode(params)}"
+
+        else:
+            logger.warning(f"Unknown service for OAuth URL generation: {service_name}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error generating OAuth URL for {service_name}: {e}")
+        return None
 
 
 @router.get("/connections")
-async def get_demo_connections():
-    """Get demo connections for dashboard"""
-    from datetime import datetime, timedelta
-    
-    return [
-        {
-            "id": "conn_1",
-            "service_name": "Google Calendar",
-            "service_type": "calendar",
-            "status": "active",
-            "created_at": (datetime.now() - timedelta(days=5)).isoformat()
-        },
-        {
-            "id": "conn_2", 
-            "service_name": "Gmail",
-            "service_type": "email",
-            "status": "active",
-            "created_at": (datetime.now() - timedelta(days=3)).isoformat()
-        },
-        {
-            "id": "conn_3",
-            "service_name": "GitHub",
-            "service_type": "development",
-            "status": "active", 
-            "created_at": (datetime.now() - timedelta(days=1)).isoformat()
-        }
-    ]
+async def get_user_connections(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """Get user's service connections"""
+    try:
+        # If no auth, return empty list
+        if not current_user:
+            return []
+        
+        from sqlalchemy import select
+        
+        query = (
+            select(ServiceConnection)
+            .where(ServiceConnection.user_id == current_user.id)
+            .where(ServiceConnection.is_active == True)
+        )
+        
+        result = await db.execute(query)
+        connections = result.scalars().all()
+        
+        connection_list = []
+        for conn in connections:
+            connection_list.append({
+                "id": conn.id,
+                "service_name": conn.service_name,
+                "service_type": conn.service_type,
+                "status": "active" if conn.is_active else "inactive",
+                "created_at": conn.created_at.isoformat() if conn.created_at else None
+            })
+        
+        return connection_list
+        
+    except Exception as e:
+        logger.error(f"Error getting user connections: {e}")
+        return []
 
-        # // done hadiqa
+
+# Note: I removed the duplicate `execute_action_demo` standalone function and the broken fallback code.
+

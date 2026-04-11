@@ -292,5 +292,3 @@ async def auth_health_check(
         "user_id": current_user.get("sub") if current_user else None,
         "timestamp": session_manager.redis_client is not None
     }
-
-        # // done hadiqa

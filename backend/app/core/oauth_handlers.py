@@ -19,7 +19,6 @@ class OAuthError(Exception):
     """Base exception for OAuth operations"""
     pass
 
-    # // done hadiqa
 
 class InvalidStateError(OAuthError):
     """Raised when OAuth state parameter is invalid"""

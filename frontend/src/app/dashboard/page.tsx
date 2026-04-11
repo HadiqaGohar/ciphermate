@@ -11,7 +11,6 @@ interface Connection {
   status: string;
   created_at: string;
 }
-// done hadiqa
 
 interface Action {
   id: string;
@@ -32,216 +31,74 @@ interface Stats {
   active_agents: number;
 }
 
-// API base URL - use frontend API routes instead of separate backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const BACKEND_BASE_URL = "http://localhost:8080/api/v1";
 
 export default function Dashboard() {
-  const { user, error, isLoading } = useAuth();
+  const { user, error, isLoading, getAccessToken } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Always fetch data, regardless of auth status for demo
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      const token = "dev-token"; // For development
+      const token = await getAccessToken();
+      if (!token) {
+        console.warn("No auth token available");
+        setConnections([]);
+        setActions([]);
+        setStats(null);
+        setLoading(false);
+        return;
+      }
 
-      console.log("🔍 API_BASE_URL:", API_BASE_URL);
-      console.log(
-        "🔍 Environment NEXT_PUBLIC_API_URL:",
-        process.env.NEXT_PUBLIC_API_URL
-      );
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
 
       // Fetch connections
       try {
-        const connectionsUrl = `/api/v1/agent/connections`;
-        console.log("🔗 Fetching connections from:", connectionsUrl);
-        const connectionsRes = await fetch(connectionsUrl, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const connectionsRes = await fetch(`${BACKEND_BASE_URL}/agent/connections`, {
+          headers: authHeaders,
         });
 
         if (connectionsRes.ok) {
-          const contentType = connectionsRes.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const connectionsData = await connectionsRes.json();
-            setConnections(connectionsData);
-          } else {
-            console.warn("Connections endpoint returned non-JSON response");
-            // Set mock data for demo
-            setConnections([
-              {
-                id: "1",
-                service_name: "Gmail",
-                service_type: "Email",
-                status: "active",
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "2",
-                service_name: "Slack",
-                service_type: "Communication",
-                status: "active",
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
+          const data = await connectionsRes.json();
+          setConnections(data);
         } else {
           console.error("Failed to fetch connections:", connectionsRes.status);
-          // Set mock data for demo
           setConnections([]);
         }
       } catch (error) {
         console.error("Error fetching connections:", error);
-        // Set mock data for demo
         setConnections([]);
       }
 
       // Fetch actions
       try {
-        const actionsRes = await fetch(`/api/v1/agent/actions`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const actionsRes = await fetch(`${BACKEND_BASE_URL}/agent/actions`, {
+          headers: authHeaders,
         });
 
         if (actionsRes.ok) {
-          const contentType = actionsRes.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const actionsData = await actionsRes.json();
-            setActions(actionsData);
-          } else {
-            console.warn("Actions endpoint returned non-JSON response");
-            // Set mock data for demo
-            setActions([
-              {
-                id: "1",
-                agent_type: "email",
-                action: "Send welcome email",
-                status: "completed",
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "2",
-                agent_type: "task",
-                action: "Create project board",
-                status: "pending",
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
+          const data = await actionsRes.json();
+          setActions(data);
         } else {
           console.error("Failed to fetch actions:", actionsRes.status);
-          // Set mock data for demo
           setActions([]);
         }
       } catch (error) {
         console.error("Error fetching actions:", error);
-        // Set mock data for demo
         setActions([]);
-      }
-
-      // Fetch stats
-      try {
-        const statsRes = await fetch(`/api/v1/demo/stats`);
-
-        if (statsRes.ok) {
-          const contentType = statsRes.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const statsData = await statsRes.json();
-            setStats(statsData);
-          } else {
-            console.warn("Stats endpoint returned non-JSON response");
-            // Set mock data for demo
-            setStats({
-              total_users: 1,
-              total_connections: 2,
-              total_actions: 5,
-              total_tokens: 1250,
-              uptime: "99.9%",
-              api_calls_today: 42,
-              active_agents: 3,
-            });
-          }
-        } else {
-          console.error("Failed to fetch stats:", statsRes.status);
-          // Set mock data for demo
-          setStats({
-            total_users: 1,
-            total_connections: 0,
-            total_actions: 0,
-            total_tokens: 0,
-            uptime: "100%",
-            api_calls_today: 0,
-            active_agents: 0,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-        // Set mock data for demo
-        setStats({
-          total_users: 1,
-          total_connections: 0,
-          total_actions: 0,
-          total_tokens: 0,
-          uptime: "100%",
-          api_calls_today: 0,
-          active_agents: 0,
-        });
       }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const simulateAction = async () => {
-    try {
-      const token = "dev-token";
-      const response = await fetch(`/api/v1/demo/simulate-action`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          await response.json(); // Consume the response
-        }
-        fetchData(); // Refresh data
-      } else {
-        console.error("Failed to simulate action:", response.status);
-        // Add a mock action for demo
-        const newAction = {
-          id: Date.now().toString(),
-          agent_type: "demo",
-          action: "Simulated AI action",
-          status: "completed",
-          created_at: new Date().toISOString(),
-        };
-        setActions((prev) => [newAction, ...prev]);
-      }
-    } catch (error) {
-      console.error("Error simulating action:", error);
-      // Add a mock action for demo even if API fails
-      const newAction = {
-        id: Date.now().toString(),
-        agent_type: "demo",
-        action: "Simulated AI action (offline)",
-        status: "completed",
-        created_at: new Date().toISOString(),
-      };
-      setActions((prev) => [newAction, ...prev]);
     }
   };
 
@@ -402,12 +259,6 @@ export default function Dashboard() {
               <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                 Recent AI Actions
               </h2>
-              <button
-                onClick={simulateAction}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Simulate Action
-              </button>
             </div>
 
             {loading ? (
@@ -416,7 +267,7 @@ export default function Dashboard() {
               </div>
             ) : actions.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
-                No actions yet. Try simulating an action!
+                No actions found.
               </div>
             ) : (
               <div className="space-y-4">

@@ -9,7 +9,6 @@ from app.core.cache import cache_service
 from app.core.auth import get_optional_user
 
 router = APIRouter(prefix="/health", tags=["health"])
-    # // done hadiqa
 
 
 @router.get("/")

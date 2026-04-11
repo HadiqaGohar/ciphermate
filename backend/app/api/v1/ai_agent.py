@@ -395,5 +395,3 @@ async def test_health():
         "agents_sdk_configured": ai_agent_engine.available,
         "openai_configured": ai_agent_engine.available
     }
-
-        # // done hadiqa

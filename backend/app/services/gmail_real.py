@@ -4,13 +4,14 @@ import base64
 import os
 import logging
 import time
+import asyncio
 from typing import Dict, Any
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
-    # // done hadiqa
+from app.core.token_vault import token_vault_service
 
 logger = logging.getLogger(__name__)
 
@@ -36,23 +37,66 @@ class RealGmailService:
             self.service = build('gmail', 'v1', credentials=creds)
         return self.service
     
+    async def send_email(self, db, user_id: int, to: str, subject: str, body: str) -> Dict[str, Any]:
+        """Send real email using Gmail API (async wrapper)"""
+        try:
+            # Get Gmail token from vault
+            user_id_str = str(user_id)
+            token_data = await token_vault_service.retrieve_token(
+                user_id=user_id_str,
+                service_name="gmail",
+                auto_refresh=False
+            )
+
+            # Fallback to temp_tokens if no token in vault (for OAuth flow)
+            if not token_data:
+                logger.warning(f"No Gmail token found for user {user_id}, checking temp_tokens")
+                # Import here to avoid circular imports
+                from app.api.routes.gmail_auth import temp_tokens
+                
+                if 'current' in temp_tokens:
+                    token_data = temp_tokens['current']
+                    logger.info(f"✅ Using Gmail token from temp_tokens")
+                else:
+                    logger.warning(f"No Gmail token in temp_tokens either")
+                    return {
+                        "success": False,
+                        "error": "Gmail not connected",
+                        "message": "🔐 Gmail authentication required. Please connect your Gmail account."
+                    }
+
+            access_token = token_data.get('access_token')
+            refresh_token = token_data.get('refresh_token')
+            
+            if not access_token:
+                logger.error(f"Gmail token data structure: {token_data}")
+                return {
+                    "success": False,
+                    "error": "Invalid Gmail token",
+                    "message": "❌ Invalid Gmail token: missing access_token"
+                }
+
+            # Create service instance with tokens
+            self.access_token = access_token
+            self.refresh_token = refresh_token
+            
+            # Run sync method in thread pool
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self.send_email_sync, to, subject, body)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Gmail send error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"❌ Cannot send email: {str(e)}"
+            }
+    
     def send_email_sync(self, to: str, subject: str, body: str) -> Dict[str, Any]:
         """Send real email using Gmail API (synchronous)"""
         try:
-            # Check if this is a demo token
-            if self.access_token == 'demo_access_token_for_hackathon':
-                logger.info(f"🎭 DEMO MODE: Simulating email send to {to}")
-                return {
-                    "success": True,
-                    "message_id": f"demo_message_id_{int(time.time())}",
-                    "to": to,
-                    "subject": subject,
-                    "status": "demo_delivered",
-                    "provider": "gmail_api_demo",
-                    "timestamp": "now",
-                    "note": "This is a DEMO - no real email was sent"
-                }
-            
             service = self._get_service()
             
             # Create email message
@@ -106,7 +150,8 @@ class RealGmailService:
                 "subject": subject,
                 "status": "delivered",
                 "provider": "gmail_api",
-                "timestamp": "now"
+                "timestamp": "now",
+                "message": f"✅ Email sent successfully to {to}!"
             }
             
         except Exception as e:
@@ -117,3 +162,6 @@ class RealGmailService:
                 "message": f"Failed to send email: {str(e)}",
                 "provider": "gmail_api"
             }
+
+# Create global instance
+gmail_service = RealGmailService()

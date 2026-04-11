@@ -10,7 +10,6 @@ from app.core.token_vault import (
     AuthenticationError,
     ServiceError
 )
-
 import logging
 from datetime import datetime, timedelta
 
@@ -251,81 +250,32 @@ async def revoke_token(
 async def list_tokens(
     user_id: Optional[str] = None,
     include_inactive: bool = False,
-    # current_user: Dict[str, Any] = Depends(get_current_user)  # Commented out for hackathon demo
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """List all tokens for a user with enhanced metadata - No auth for hackathon demo"""
+    """List all tokens for a user with enhanced metadata"""
     try:
-        # Demo token data for hackathon
-        demo_tokens = [
-            {
-                "id": "tok_1",
-                "name": "Google Calendar Access",
-                "service": "google_calendar",
-                "service_name": "Google Calendar",
-                "status": "active",
-                "created_at": (datetime.utcnow() - timedelta(days=30)).isoformat() + "Z",
-                "expires_at": (datetime.utcnow() + timedelta(days=60)).isoformat() + "Z",
-                "last_used": (datetime.utcnow() - timedelta(hours=2)).isoformat() + "Z",
-                "scopes": ["calendar.read", "calendar.write"],
-                "icon": "calendar",
-                "color": "#4285F4"
-            },
-            {
-                "id": "tok_2",
-                "name": "Gmail Access",
-                "service": "gmail",
-                "service_name": "Gmail",
-                "status": "active",
-                "created_at": (datetime.utcnow() - timedelta(days=25)).isoformat() + "Z",
-                "expires_at": (datetime.utcnow() + timedelta(days=65)).isoformat() + "Z",
-                "last_used": (datetime.utcnow() - timedelta(hours=5)).isoformat() + "Z",
-                "scopes": ["email.read", "email.send"],
-                "icon": "mail",
-                "color": "#EA4335"
-            },
-            {
-                "id": "tok_3",
-                "name": "GitHub Access",
-                "service": "github",
-                "service_name": "GitHub",
-                "status": "active",
-                "created_at": (datetime.utcnow() - timedelta(days=20)).isoformat() + "Z",
-                "expires_at": (datetime.utcnow() + timedelta(days=70)).isoformat() + "Z",
-                "last_used": (datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-                "scopes": ["repo", "user:email"],
-                "icon": "github",
-                "color": "#181717"
-            },
-            {
-                "id": "tok_4",
-                "name": "Slack Workspace",
-                "service": "slack",
-                "service_name": "Slack",
-                "status": "expiring_soon",
-                "created_at": (datetime.utcnow() - timedelta(days=80)).isoformat() + "Z",
-                "expires_at": (datetime.utcnow() + timedelta(days=5)).isoformat() + "Z",
-                "last_used": (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z",
-                "scopes": ["channels:read", "chat:write"],
-                "icon": "slack",
-                "color": "#4A154B"
-            }
-        ]
+        # Use the user_id from the authenticated user if not provided
+        if not user_id:
+            user_id = current_user.get("sub")
         
+        # Get tokens from token vault service
+        tokens = await token_vault_service.list_user_tokens(user_id, include_inactive)
+
         return {
-            "tokens": demo_tokens,
-            "total": len(demo_tokens),
-            "count": len(demo_tokens),
-            "user_id": user_id or "demo_user",
+            "tokens": tokens,
+            "total": len(tokens),
+            "count": len(tokens),
+            "user_id": user_id,
             "include_inactive": include_inactive,
             "retrieved_at": datetime.utcnow().isoformat() + "Z",
             "summary": {
-                "total_tokens": len(demo_tokens),
-                "active_tokens": sum(1 for t in demo_tokens if t["status"] == "active"),
-                "expiring_soon": sum(1 for t in demo_tokens if t["status"] == "expiring_soon"),
-                "expired": sum(1 for t in demo_tokens if t["status"] == "expired")
+                "total_tokens": len(tokens),
+                "active_tokens": sum(1 for t in tokens if t.get("status") == "active"),
+                "expiring_soon": sum(1 for t in tokens if t.get("status") == "expiring_soon"),
+                "expired": sum(1 for t in tokens if t.get("status") == "expired")
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Unexpected error listing tokens: {e}")
         raise HTTPException(
@@ -568,5 +518,3 @@ async def get_vault_statistics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Statistics generation failed: {str(e)}"
         )
-
-            # // done hadiqa

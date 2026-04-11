@@ -5,15 +5,13 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     if (!body.action_id) {
       return NextResponse.json(
         { error: "action_id is required" },
         { status: 400 }
       );
     }
-// done hadiqa
-
 
     // Try to call the authenticated execute endpoint
     try {
@@ -32,7 +30,6 @@ export async function POST(request: NextRequest) {
 
       if (backendResponse.ok) {
         const backendResult = await backendResponse.json();
-        
         return NextResponse.json({
           success: true,
           result: backendResult.result,
@@ -47,15 +44,31 @@ export async function POST(request: NextRequest) {
           requires_auth: true
         }, { status: 401 });
       } else {
-        throw new Error(`Backend responded with status: ${backendResponse.status}`);
+        // Parse error response from backend
+        const errorData = await backendResponse.json().catch(() => null);
+        const errorMessage = errorData?.detail || errorData?.message || `Backend responded with status: ${backendResponse.status}`;
+        
+        console.error('Backend error response:', {
+          status: backendResponse.status,
+          error: errorMessage,
+          detail: errorData
+        });
+
+        return NextResponse.json({
+          success: false,
+          error: errorMessage,
+          message: `Failed to execute action: ${errorMessage}`,
+          status_code: backendResponse.status
+        }, { status: backendResponse.status === 404 ? 404 : 500 });
       }
     } catch (backendError) {
-      console.log('Backend not available or authentication failed:', backendError);
-      
+      console.error('Backend connection error:', backendError);
+
       return NextResponse.json({
         success: false,
-        error: "Backend not available or authentication required",
-        message: "Please ensure you are logged in and the backend is running"
+        error: "Backend not available or connection failed",
+        message: "Please ensure the backend server is running and accessible",
+        requires_auth: false
       }, { status: 503 });
     }
   } catch (error) {

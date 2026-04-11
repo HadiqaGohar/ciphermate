@@ -1,7 +1,6 @@
 """
 Global error handlers for FastAPI application
 """
-    # // done hadiqa
 
 import traceback
 import uuid

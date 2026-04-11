@@ -2,15 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    // For hackathon: return mock token
-    return NextResponse.json({
-      accessToken: 'mock-access-token-for-hackathon',
-      user: {
-        sub: 'mock-user-123',
-        email: 'test@example.com',
-        name: 'Test User'
+    // Try to get token from Auth0 session via backend
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    
+    try {
+      // Get user's session from backend
+      const sessionResponse = await fetch(`${backendUrl}/api/v1/auth/session`, {
+        method: 'GET',
+        headers: {
+          'Cookie': request.headers.get('cookie') || ''
+        },
+        credentials: 'include'
+      });
+
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        return NextResponse.json({
+          accessToken: sessionData.access_token || null,
+          user: sessionData.user_data || null,
+          session_id: sessionData.session_id
+        });
       }
-    });
+    } catch (sessionError) {
+      console.warn('Backend session not available, checking for stored token');
+    }
+
+    // Fallback: return empty response indicating no auth
+    return NextResponse.json({
+      accessToken: null,
+      user: null,
+      message: 'No active session found'
+    }, { status: 401 });
 
   } catch (error) {
     console.error('Error getting access token:', error);
@@ -20,4 +42,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-// done hadiqa

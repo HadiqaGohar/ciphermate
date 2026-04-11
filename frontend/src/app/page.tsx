@@ -1,9 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 
-// Force dynamic rendering for this route (fixes Vercel deployment)
-export const dynamic = "force-dynamic";
-
 export default async function Home() {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("appSession");

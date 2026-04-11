@@ -3,40 +3,71 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     // Return mock agent actions in the format the dashboard expects
-    // done hadiqa
-
     const mockAgentActions = [
       {
-        id: "1",
-        agent_type: "email",
-        action: "Send automated welcome email",
+        id: 1,
+        action_type: "EMAIL_SEND",
+        service_name: "gmail",
         status: "completed",
-        created_at: new Date(Date.now() - 1800000).toISOString(), // 30 min ago
-        result: "Email sent successfully to 5 recipients"
+        created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 min ago
+        executed_at: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+        result: "Email sent successfully to team@example.com",
+        parameters: { 
+          to: "team@example.com", 
+          subject: "Project Update",
+          body: "Here's the latest project status..." 
+        }
       },
       {
-        id: "2", 
-        agent_type: "github",
-        action: "Create repository backup",
+        id: 2,
+        action_type: "CALENDAR_CREATE_EVENT",
+        service_name: "google_calendar",
         status: "completed",
-        created_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-        result: "Repository backed up to cloud storage"
+        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+        executed_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        result: "Event 'Team Meeting' created successfully",
+        parameters: { 
+          title: "Team Meeting",
+          date: "2026-04-10",
+          time: "14:00"
+        }
       },
       {
-        id: "3",
-        agent_type: "slack",
-        action: "Post daily standup reminder",
+        id: 3,
+        action_type: "GITHUB_CREATE_ISSUE",
+        service_name: "github",
+        status: "completed",
+        created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+        executed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        result: "Issue #42 created: Fix login bug",
+        parameters: { 
+          title: "Fix login bug",
+          repo: "ciphermate/app"
+        }
+      },
+      {
+        id: 4,
+        action_type: "SLACK_SEND_MESSAGE",
+        service_name: "slack",
         status: "pending",
-        created_at: new Date().toISOString(),
-        result: null
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 min ago
+        parameters: { 
+          channel: "#general", 
+          text: "Team standup in 5 minutes!" 
+        }
       },
       {
-        id: "4",
-        agent_type: "task",
-        action: "Generate weekly report",
+        id: 5,
+        action_type: "EMAIL_SEND",
+        service_name: "gmail",
         status: "completed",
-        created_at: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-        result: "Report generated and shared with team"
+        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+        executed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        result: "Welcome email sent to new user",
+        parameters: { 
+          to: "newuser@example.com", 
+          subject: "Welcome to CipherMate!"
+        }
       }
     ];
 

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/hooks/useAuth";
-// done hadiqa
 
 // API base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -24,7 +23,7 @@ export default function AIAgentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAction, setSelectedAction] = useState<AgentAction | null>(null);
   const [mounted, setMounted] = useState(false);
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -77,17 +76,22 @@ export default function AIAgentPage() {
   async function fetchActions() {
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/v1/agent/actions`);
+      
+      // Use local API route with mock data instead of calling backend directly
+      // This avoids Auth0 token verification issues
+      const response = await fetch('/api/v1/agent/actions');
+      
       if (response.ok) {
         const data = await response.json();
-        if (data.actions && Array.isArray(data.actions)) {
-          setActions(data.actions);
-        } else if (Array.isArray(data)) {
+        if (Array.isArray(data)) {
           setActions(data);
+        } else if (data.actions && Array.isArray(data.actions)) {
+          setActions(data.actions);
         } else {
           setActions(getMockActions());
         }
       } else {
+        console.warn(`Actions endpoint returned ${response.status}, using mock data`);
         setActions(getMockActions());
       }
     } catch (err) {

@@ -1,6 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, token_vault, agent, ai_agent, permissions, integrations, audit, security, health, gmail
-from app.api.routes.execute_action import router as execute_action_router
+from app.api.v1 import auth, token_vault, agent, ai_agent, permissions, integrations, audit, security, health, gmail, execute_action
 
 # Create main API router
 api_router = APIRouter()
@@ -21,7 +20,7 @@ api_router.include_router(ai_agent.router)
 api_router.include_router(gmail.router)
 
 # Include execute action routes
-api_router.include_router(execute_action_router)
+api_router.include_router(execute_action.router)
 
 # Include permission management routes
 api_router.include_router(permissions.router)
@@ -48,6 +47,3 @@ async def api_root():
 async def api_status():
     """API status endpoint"""
     return {"status": "operational", "version": "1.0.0"}
-
-
-        # // done hadiqa

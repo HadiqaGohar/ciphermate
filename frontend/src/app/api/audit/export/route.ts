@@ -1,21 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export async function GET(request: NextRequest) {
   try {
-    // For hackathon: bypass session check and directly call backend
+    // Get session from cookies
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('appSession');
+
+    if (!sessionCookie?.value) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    let session;
+    try {
+      session = JSON.parse(sessionCookie.value);
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid session' },
+        { status: 401 }
+      );
+    }
+
+    if (!session?.accessToken) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
 
-    // Forward request to backend
+    // Forward request to backend with auth
     const response = await fetch(`${BACKEND_URL}/api/v1/audit/export?${queryString}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.accessToken}`,
       },
     });
-// done hadiqa
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

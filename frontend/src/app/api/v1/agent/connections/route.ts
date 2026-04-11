@@ -33,5 +33,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch connections' }, { status: 500 });
   }
 }
-
-// done hadiqa

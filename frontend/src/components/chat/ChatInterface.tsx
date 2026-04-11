@@ -9,7 +9,6 @@ import { LoadingIndicator } from "./LoadingIndicator";
 
 // Remove Auth0 import to avoid SSR issues
 // import { useUser } from "@auth0/nextjs-auth0";
-// done hadiqa
 
 export interface Message {
   id: string;
@@ -214,11 +213,11 @@ export default function ChatInterface({ user, session }: ChatInterfaceProps) {
       }
 
       const data: ChatResponse = await response.json();
-      
+
       console.log("🎯 Frontend received response:", {
         message: data.message?.substring(0, 100),
         intent_type: data.intent_analysis?.intent_type,
-        confidence: data.intent_analysis?.confidence
+        confidence: data.intent_analysis?.confidence,
       });
 
       const assistantMessage: Message = {
@@ -232,7 +231,10 @@ export default function ChatInterface({ user, session }: ChatInterfaceProps) {
         permissionGrantUrl: data.permission_grant_url,
       };
 
-      console.log("💬 Adding message to chat:", assistantMessage.content?.substring(0, 100));
+      console.log(
+        "💬 Adding message to chat:",
+        assistantMessage.content?.substring(0, 100)
+      );
       setMessages((prev) => [...prev, assistantMessage]);
 
       // Auto-execute actionable intents (calendar, email, etc.) without confirmation
@@ -246,18 +248,79 @@ export default function ChatInterface({ user, session }: ChatInterfaceProps) {
         // Automatically execute the action
         await executeActionAutomatically(data.action_id);
       }
-      // Handle permission requirements (for other cases)
-      else if (
+      // Handle permission requirements with OAuth popup
+      if (
         data.requires_permission &&
         data.intent_analysis.service_name &&
         data.permission_grant_url
       ) {
-        setPendingPermission({
-          serviceName: data.intent_analysis.service_name,
-          permissions: data.intent_analysis.missing_permissions || [],
-          grantUrl: data.permission_grant_url,
-        });
-        setShowPermissionDialog(true);
+        console.log(
+          "🔐 Opening OAuth popup for:",
+          data.intent_analysis.service_name
+        );
+        console.log("🔗 OAuth URL:", data.permission_grant_url);
+
+        // Open OAuth popup
+        const popup = window.open(
+          data.permission_grant_url,
+          "oauth_popup",
+          "width=600,height=700,scrollbars=yes,resizable=yes"
+        );
+
+        // Listen for OAuth completion
+        const handleOAuthMessage = (event: MessageEvent) => {
+          if (event.data.type === "oauth_success") {
+            console.log("✅ OAuth completed successfully");
+            popup?.close();
+            window.removeEventListener("message", handleOAuthMessage);
+
+            // Show success message
+            const successMessage: Message = {
+              id: Date.now().toString(),
+              type: "assistant",
+              content:
+                "✅ Permission granted! Connecting to Google Calendar...",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, successMessage]);
+
+            // Wait a moment for token to be stored, then retry the action
+            setTimeout(() => {
+              if (data.action_id) {
+                executeActionAutomatically(data.action_id);
+              }
+            }, 1000);
+          } else if (event.data.type === "oauth_error") {
+            console.log("❌ OAuth failed:", event.data.error);
+            popup?.close();
+            window.removeEventListener("message", handleOAuthMessage);
+
+            // Show error message
+            const errorMessage: Message = {
+              id: Date.now().toString(),
+              type: "assistant",
+              content:
+                "❌ Permission denied. I won't be able to perform that action without the necessary permissions. Please try again when you're ready to grant access.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+          }
+        };
+
+        window.addEventListener("message", handleOAuthMessage);
+
+        // Fallback: show permission dialog if popup is blocked
+        setTimeout(() => {
+          if (popup?.closed) {
+            setPendingPermission({
+              serviceName:
+                data.intent_analysis.service_name || "Unknown Service",
+              permissions: data.intent_analysis.missing_permissions || [],
+              grantUrl: data.permission_grant_url || "",
+            });
+            setShowPermissionDialog(true);
+          }
+        }, 1000);
       }
     } catch (err: any) {
       console.error("Chat message error:", err);

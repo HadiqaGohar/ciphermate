@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 from sqlalchemy.exc import SQLAlchemyError
-    # // done hadiqa
 
 from .core.config import settings
 from .core.database import engine, Base
@@ -149,6 +148,14 @@ app.include_router(api_router, prefix="/api/v1")
 # Include Gmail auth routes (outside of v1 prefix)
 from app.api.routes.gmail_auth import router as gmail_auth_router
 app.include_router(gmail_auth_router)
+
+# Include Google Calendar auth routes (outside of v1 prefix)
+from app.api.routes.google_calendar_auth import router as google_calendar_auth_router
+app.include_router(google_calendar_auth_router)
+
+# Include GitHub OAuth callback handler (outside of v1 prefix)
+from app.api.routes.github_auth import router as github_auth_router
+app.include_router(github_auth_router)
 
 # Add exception handlers
 app.add_exception_handler(CipherMateException, ciphermate_exception_handler)

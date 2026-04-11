@@ -3,9 +3,6 @@ import { cookies } from "next/headers";
 import AuditDashboard from "@/components/audit/AuditDashboard";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 
-// Force dynamic rendering for this route (fixes Vercel deployment)
-export const dynamic = "force-dynamic";
-
 export default async function AuditPage() {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("appSession");

@@ -1,8 +1,6 @@
 """
 Input validation and sanitization utilities
 """
-    # // done hadiqa
-
 
 import re
 import html
@@ -104,6 +102,10 @@ def detect_sql_injection(text: str) -> List[str]:
     if not settings.ENABLE_SQL_INJECTION_DETECTION or not text:
         return []
     
+    # Skip Slack channel names
+    if re.match(r'^#[a-zA-Z0-9_-]+$', text.strip()):
+        return []
+    
     detected_patterns = []
     text_lower = text.lower()
     
@@ -111,9 +113,9 @@ def detect_sql_injection(text: str) -> List[str]:
         if pattern.search(text):
             detected_patterns.append(f"SQL injection pattern detected: {pattern.pattern}")
     
-    # Additional heuristic checks
+    # Additional heuristic checks - but skip for Slack channels
     suspicious_keywords = ['union', 'select', 'insert', 'update', 'delete', 'drop', 'exec', 'script']
-    sql_operators = ['--', '#', '/*', '*/', ';']
+    sql_operators = ['--', '/*', '*/', ';']  # Removed '#' from here since it's used in Slack channels
     
     for keyword in suspicious_keywords:
         if keyword in text_lower and any(op in text for op in sql_operators):
@@ -154,6 +156,11 @@ def validate_against_injection_attacks(text: str) -> ValidationResult:
     
     # For chat messages, be more lenient with common words
     text_lower = text.lower()
+    
+    # Skip validation for Slack channel patterns
+    if re.match(r'^#[a-zA-Z0-9_-]+$', text.strip()):
+        # This is a Slack channel name, allow it
+        return ValidationResult(is_valid=True, sanitized_value=text)
     
     # Skip validation for common chat patterns that might trigger false positives
     chat_safe_patterns = [

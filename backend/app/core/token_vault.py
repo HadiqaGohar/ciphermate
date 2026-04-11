@@ -13,7 +13,6 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-    # // done hadiqa
 
 class TokenVaultError(Exception):
     """Base exception for Token Vault operations"""
@@ -58,21 +57,19 @@ class TokenVaultService:
         self._management_token_expires = None
         self._max_retries = 3
         self._retry_delay = 1.0  # seconds
+        # Local token cache fallback when Auth0 Management API is unavailable
+        self._local_token_cache: dict = {}
     
-    async def _get_management_token_with_retry(self) -> str:
-        """Get Auth0 Management API token with retry logic"""
-        for attempt in range(self._max_retries):
-            try:
-                return await self._get_management_token()
-            except Exception as e:
-                if attempt == self._max_retries - 1:
-                    logger.error(f"Failed to get management token after {self._max_retries} attempts: {e}")
-                    raise AuthenticationError(f"Unable to authenticate with Auth0: {str(e)}")
-                
-                logger.warning(f"Management token attempt {attempt + 1} failed: {e}, retrying...")
-                await asyncio.sleep(self._retry_delay * (2 ** attempt))  # Exponential backoff
-        
-        raise AuthenticationError("Maximum retry attempts exceeded")
+    async def _get_management_token_with_retry(self) -> Optional[str]:
+        """Get Auth0 Management API token with single fast attempt, returns None if unavailable"""
+        try:
+            return await self._get_management_token()
+        except AuthenticationError as e:
+            logger.warning(f"Auth0 Management API unavailable: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Management token failed: {e}")
+            return None
     
     async def _get_management_token(self) -> str:
         """Get Auth0 Management API token with caching"""
@@ -129,46 +126,64 @@ class TokenVaultService:
         scopes: List[str],
         expires_at: Optional[datetime] = None
     ) -> str:
-        """Store token in Auth0 Token Vault with comprehensive error handling"""
+        """Store token with database-first approach, Auth0 as backup"""
         if not user_id or not service_name or not token_data:
             raise ValueError("user_id, service_name, and token_data are required")
+
+        vault_id = f"local_{user_id}_{service_name}_{int(datetime.now(timezone.utc).timestamp())}"
         
+        # Store in local cache
+        self._local_token_cache[vault_id] = {
+            "user_id": user_id,
+            "service_name": service_name,
+            "token_data": token_data,
+            "scopes": scopes,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        # ALWAYS try to store in database first
         try:
-            management_token = await self._get_management_token_with_retry()
-            
-            # Prepare vault data with enhanced metadata
-            vault_data = {
-                "service": service_name,
-                "token": token_data,
-                "scopes": scopes,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "expires_at": expires_at.isoformat() if expires_at else None,
-                "metadata": {
-                    "user_id": user_id,
-                    "service_name": service_name,
-                    "token_type": token_data.get("token_type", "Bearer"),
-                    "scope_count": len(scopes)
-                }
-            }
-            
-            # Store in Auth0 Token Vault with retry logic
-            vault_id = await self._store_in_vault_with_retry(
-                user_id, vault_data, management_token
-            )
-            
-            # Store reference in local database
             await self._store_local_reference(
-                user_id, service_name, vault_id, scopes, expires_at, vault_data
+                user_id, service_name, vault_id, scopes, expires_at, {
+                    "service": service_name,
+                    "token": token_data,
+                    "scopes": scopes
+                }
             )
-            
-            logger.info(f"Token stored successfully for user {user_id}, service {service_name}")
+            logger.info(f"Token stored in database for user {user_id}, service {service_name}")
             return vault_id
-                
-        except TokenVaultError:
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error storing token: {e}")
-            raise TokenVaultError(f"Token storage failed: {str(e)}")
+        except Exception as db_error:
+            logger.warning(f"Database storage failed: {db_error}")
+            # Try Auth0 vault as backup
+            management_token = await self._get_management_token_with_retry()
+            if management_token:
+                try:
+                    vault_data = {
+                        "service": service_name,
+                        "token": token_data,
+                        "scopes": scopes,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "expires_at": expires_at.isoformat() if expires_at else None,
+                        "metadata": {
+                            "user_id": user_id,
+                            "service_name": service_name,
+                            "token_type": token_data.get("token_type", "Bearer"),
+                            "scope_count": len(scopes)
+                        }
+                    }
+
+                    auth0_vault_id = await self._store_in_vault_with_retry(
+                        user_id, vault_data, management_token
+                    )
+                    logger.info(f"Token stored in Auth0 vault: {auth0_vault_id}")
+                    return auth0_vault_id
+                except Exception as auth0_error:
+                    logger.error(f"Auth0 storage also failed: {auth0_error}")
+
+        # Return local cache ID even if database/Auth0 failed
+        logger.info(f"Token stored in local cache only for user {user_id}, service {service_name}")
+        return vault_id
     
     async def _store_in_vault_with_retry(
         self, user_id: str, vault_data: Dict[str, Any], management_token: str
@@ -214,16 +229,41 @@ class TokenVaultService:
         raise TokenVaultError("Maximum retry attempts exceeded for vault storage")
     
     async def _store_local_reference(
-        self, user_id: str, service_name: str, vault_id: str, 
+        self, user_id: str, service_name: str, vault_id: str,
         scopes: List[str], expires_at: Optional[datetime], vault_data: Dict[str, Any]
     ) -> None:
-        """Store local database reference"""
+        """Store local database reference, creating user if needed"""
         try:
             async with AsyncSessionLocal() as db:
-                # Check if connection already exists and deactivate it
+                # Convert user_id to int for database
+                db_user_id = int(user_id) if user_id.isdigit() else 0
+                
+                # Ensure user exists in database
+                from app.models.user import User
+                user_result = await db.execute(select(User).where(User.id == db_user_id))
+                existing_user = user_result.scalar_one_or_none()
+                
+                if not existing_user:
+                    # Create a fallback user
+                    fallback_user = User(
+                        id=db_user_id,
+                        auth0_id=f"github_{user_id}",
+                        email=f"github_{user_id}@local",
+                        name=f"GitHub User {user_id}"
+                    )
+                    db.add(fallback_user)
+                    try:
+                        await db.commit()
+                        logger.info(f"Created fallback user with ID {db_user_id}")
+                    except Exception as user_error:
+                        await db.rollback()
+                        logger.warning(f"Failed to create user {db_user_id}, using ID 0: {user_error}")
+                        db_user_id = 0
+
+                # Deactivate existing connection
                 existing = await db.execute(
                     select(ServiceConnection).where(
-                        ServiceConnection.user_id == user_id,
+                        ServiceConnection.user_id == db_user_id,
                         ServiceConnection.service_name == service_name,
                         ServiceConnection.is_active == True
                     )
@@ -231,25 +271,26 @@ class TokenVaultService:
                 existing_conn = existing.scalar_one_or_none()
                 if existing_conn:
                     existing_conn.is_active = False
-                
+
                 # Create new connection
                 connection = ServiceConnection(
-                    user_id=user_id,
+                    user_id=db_user_id,
                     service_name=service_name,
                     token_vault_id=vault_id,
                     scopes=scopes,
                     is_active=True,
                     created_at=datetime.now(timezone.utc),
                     expires_at=expires_at,
-                    metadata_json={"vault_data": vault_data}
+                    metadata_json={"vault_data": vault_data, "original_user_id": user_id}
                 )
                 db.add(connection)
                 await db.commit()
-                
+                logger.info(f"✅ Stored local reference for user {db_user_id}, service {service_name}")
+
         except Exception as e:
-            logger.error(f"Failed to store local reference: {e}")
-            # Don't raise here as the token is already in the vault
-            # This is a non-critical failure
+            logger.warning(f"Database storage failed: {e}")
+            # Don't raise - token is already in memory cache
+            raise
     
     async def retrieve_token(
         self,
@@ -257,26 +298,47 @@ class TokenVaultService:
         service_name: str,
         auto_refresh: bool = True
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve token from Auth0 Token Vault with automatic refresh"""
+        """Retrieve token from local cache or database, ignoring user_id for dev/anonymous users"""
         if not user_id or not service_name:
             raise ValueError("user_id and service_name are required")
-        
+
+        # FIRST: Check local cache by service_name (works across reloads for dev users)
+        for vault_id, cached in self._local_token_cache.items():
+            if cached.get("service_name") == service_name:
+                logger.info(f"Retrieved token from local cache for service {service_name}")
+                return cached.get("token_data")
+
+        # THEN: Try database lookup
         try:
-            # Get token vault ID from local database
             async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    select(ServiceConnection).where(
-                        ServiceConnection.user_id == user_id,
-                        ServiceConnection.service_name == service_name,
-                        ServiceConnection.is_active == True
+                # For dev/anonymous users, search by service_name only
+                is_dev_user = user_id in ("anonymous", "dev_user", "0") or user_id.isdigit()
+                
+                if is_dev_user:
+                    # Search for ANY active connection for this service
+                    result = await db.execute(
+                        select(ServiceConnection).where(
+                            ServiceConnection.service_name == service_name,
+                            ServiceConnection.is_active == True
+                        ).order_by(ServiceConnection.created_at.desc())
                     )
-                )
+                else:
+                    # Convert user_id to int for database
+                    db_user_id = int(user_id) if user_id.isdigit() else 0
+                    result = await db.execute(
+                        select(ServiceConnection).where(
+                            ServiceConnection.user_id == db_user_id,
+                            ServiceConnection.service_name == service_name,
+                            ServiceConnection.is_active == True
+                        )
+                    )
+                
                 connection = result.scalar_one_or_none()
-                
+
                 if not connection:
-                    logger.info(f"No active connection found for user {user_id}, service {service_name}")
+                    logger.info(f"No active connection found for service {service_name}")
                     return None
-                
+
                 # Check if token is expired
                 if connection.expires_at and connection.expires_at <= datetime.now(timezone.utc):
                     if auto_refresh:
@@ -284,28 +346,33 @@ class TokenVaultService:
                         refreshed_token = await self._attempt_token_refresh(connection)
                         if refreshed_token:
                             return refreshed_token
-                    
+
                     logger.warning(f"Token expired and refresh failed for {service_name}")
                     raise TokenExpiredError(f"Token expired for service {service_name}")
-                
-                # Retrieve from vault
-                token_data = await self._retrieve_from_vault_with_retry(
-                    user_id, connection.token_vault_id
-                )
-                
+
+                # Retrieve from Auth0 vault (will fail if management API unavailable)
+                try:
+                    token_data = await self._retrieve_from_vault_with_retry(
+                        str(connection.user_id), connection.token_vault_id
+                    )
+                except (TokenVaultError, Exception) as e:
+                    # Auth0 unavailable, use token from metadata_json
+                    logger.warning(f"Auth0 vault retrieval failed: {e}, using stored token")
+                    if connection.metadata_json and "vault_data" in connection.metadata_json:
+                        token_data = connection.metadata_json["vault_data"].get("token")
+                    else:
+                        raise
+
                 if token_data:
-                    # Update last used timestamp
                     connection.last_used_at = datetime.now(timezone.utc)
                     await db.commit()
-                    
-                    logger.info(f"Token retrieved successfully for user {user_id}, service {service_name}")
+                    logger.info(f"Token retrieved for service {service_name}")
                     return token_data
                 else:
-                    # Token not found in vault, mark as inactive
                     connection.is_active = False
                     await db.commit()
-                    raise TokenNotFoundError(f"Token not found in vault for service {service_name}")
-                    
+                    raise TokenNotFoundError(f"Token not found for service {service_name}")
+
         except (TokenVaultError, ValueError):
             raise
         except Exception as e:
@@ -315,44 +382,59 @@ class TokenVaultService:
     async def _retrieve_from_vault_with_retry(
         self, user_id: str, vault_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve token from Auth0 vault with retry logic"""
-        management_token = await self._get_management_token_with_retry()
-        
-        for attempt in range(self._max_retries):
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(
-                        f"{self.token_vault_url}/{user_id}/token-vault/{vault_id}",
-                        headers={
-                            "Authorization": f"Bearer {management_token}"
-                        }
-                    )
-                    
-                    if response.status_code == 401:
-                        # Token might be expired, refresh and retry
-                        self._management_token_cache = None
-                        management_token = await self._get_management_token_with_retry()
-                        continue
-                    elif response.status_code == 404:
-                        return None  # Token not found
-                    
-                    response.raise_for_status()
-                    vault_data = response.json()
-                    return vault_data.get("token")
-                    
-            except httpx.TimeoutException:
-                if attempt == self._max_retries - 1:
-                    raise TokenVaultError("Token Vault retrieval timed out")
-                logger.warning(f"Vault retrieval timeout, attempt {attempt + 1}, retrying...")
-                await asyncio.sleep(self._retry_delay * (2 ** attempt))
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 404:
-                    return None
-                if attempt == self._max_retries - 1:
-                    raise TokenVaultError(f"Token Vault HTTP error: {e.response.status_code}")
-                logger.warning(f"Vault retrieval HTTP error, attempt {attempt + 1}, retrying...")
-                await asyncio.sleep(self._retry_delay * (2 ** attempt))
-        
+        """Retrieve token from Auth0 vault with fallback to local cache"""
+        # First check local cache
+        if vault_id.startswith("local_") and vault_id in self._local_token_cache:
+            cached = self._local_token_cache[vault_id]
+            logger.info(f"Retrieved token from local cache for {cached.get('service_name')}")
+            return cached.get("token_data")
+
+        # Try Auth0 vault
+        try:
+            management_token = await self._get_management_token_with_retry()
+
+            for attempt in range(self._max_retries):
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        response = await client.get(
+                            f"{self.token_vault_url}/{user_id}/token-vault/{vault_id}",
+                            headers={
+                                "Authorization": f"Bearer {management_token}"
+                            }
+                        )
+
+                        if response.status_code == 401:
+                            # Token might be expired, refresh and retry
+                            self._management_token_cache = None
+                            management_token = await self._get_management_token_with_retry()
+                            continue
+                        elif response.status_code == 404:
+                            return None  # Token not found
+
+                        response.raise_for_status()
+                        vault_data = response.json()
+                        return vault_data.get("token")
+
+                except httpx.TimeoutException:
+                    if attempt == self._max_retries - 1:
+                        raise TokenVaultError("Token Vault retrieval timed out")
+                    logger.warning(f"Vault retrieval timeout, attempt {attempt + 1}, retrying...")
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        return None
+                    if attempt == self._max_retries - 1:
+                        raise TokenVaultError(f"Token Vault HTTP error: {e.response.status_code}")
+                    logger.warning(f"Vault retrieval HTTP error, attempt {attempt + 1}, retrying...")
+                    await asyncio.sleep(self._retry_delay * (2 ** attempt))
+        except Exception as e:
+            logger.warning(f"Auth0 vault retrieval failed, checking local cache: {e}")
+            # Fallback to local cache by vault_id
+            if vault_id in self._local_token_cache:
+                cached = self._local_token_cache[vault_id]
+                logger.info(f"Retrieved token from local cache fallback for {cached.get('service_name')}")
+                return cached.get("token_data")
+
         raise TokenVaultError("Maximum retry attempts exceeded for vault retrieval")
     
     async def revoke_token(

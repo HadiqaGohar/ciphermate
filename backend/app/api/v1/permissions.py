@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/permissions", tags=["permissions"])
 
-    # // done hadiqa
 
 class PermissionGrantRequest(BaseModel):
     service: str = Field(..., description="Service name (google, github, slack)")

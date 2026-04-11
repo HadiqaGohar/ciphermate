@@ -16,17 +16,16 @@ export async function GET(request: NextRequest) {
         { status: 200 }
       );
     }
-// done hadiqa
 
     try {
       const session = JSON.parse(sessionCookie.value);
-      
+
       return NextResponse.json(
         {
           authenticated: true,
           user: session.user || null,
-          accessToken: session.accessToken ? '***' : null, // Don't send actual token
-          idToken: session.idToken ? '***' : null,
+          accessToken: session.accessToken || null, // Return actual token for backend API calls
+          idToken: session.idToken || null,
         },
         { status: 200 }
       );

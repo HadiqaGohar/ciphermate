@@ -14,7 +14,6 @@ from app.core.cache import cache_service
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-    # // done hadiqa
 
 
 @dataclass

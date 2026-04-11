@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import logging
@@ -10,7 +10,7 @@ import logging
 from ...core.database import get_db
 from ...models.audit_log import AuditLog
 from ...models.security_event import SecurityEvent
-from ...core.auth import get_current_user
+from ...core.auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 logger = logging.getLogger(__name__)
@@ -22,12 +22,16 @@ async def get_audit_logs(
     action_type: Optional[str] = None,
     service_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_optional_user)
 ):
-    """Get audit logs for the current user"""
+    """Get audit logs (optional auth for hackathon demo)"""
     try:
-        # Build query
-        query = select(AuditLog).where(AuditLog.user_id == current_user.id)
+        # Build query - filter by user if authenticated, otherwise return recent logs
+        if current_user and current_user.get("sub"):
+            user_id = current_user["sub"]
+            query = select(AuditLog).where(AuditLog.user_id == user_id)
+        else:
+            query = select(AuditLog)
         
         # Apply filters
         if action_type:
@@ -78,52 +82,51 @@ async def get_audit_logs(
 async def get_audit_summary(
     days: int = Query(30, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_optional_user)
 ):
-    """Get audit statistics summary for the current user"""
+    """Get audit statistics summary (optional auth for hackathon demo)"""
     try:
         start_date = datetime.now() - timedelta(days=days)
-        
+
+        # Build base conditions - filter by user if authenticated
+        if current_user and current_user.get("sub"):
+            user_conditions = and_(
+                AuditLog.user_id == current_user["sub"],
+                AuditLog.timestamp >= start_date
+            )
+            security_user_conditions = and_(
+                SecurityEvent.user_id == current_user["sub"],
+                SecurityEvent.timestamp >= start_date
+            )
+        else:
+            user_conditions = AuditLog.timestamp >= start_date
+            security_user_conditions = SecurityEvent.timestamp >= start_date
+
         # Get action counts
         action_query = select(
             AuditLog.action_type,
             func.count(AuditLog.id).label('count')
-        ).where(
-            and_(
-                AuditLog.user_id == current_user.id,
-                AuditLog.timestamp >= start_date
-            )
-        ).group_by(AuditLog.action_type)
-        
+        ).where(user_conditions).group_by(AuditLog.action_type)
+
         action_result = await db.execute(action_query)
         action_counts = {row.action_type.lower(): row.count for row in action_result}
-        
+
         # Get service usage
         service_query = select(
             AuditLog.service_name,
             func.count(AuditLog.id).label('count')
-        ).where(
-            and_(
-                AuditLog.user_id == current_user.id,
-                AuditLog.timestamp >= start_date
-            )
-        ).group_by(AuditLog.service_name)
-        
+        ).where(user_conditions).group_by(AuditLog.service_name)
+
         service_result = await db.execute(service_query)
         service_usage = {row.service_name: row.count for row in service_result}
-        
+
         # Get security events
         security_query = select(
             SecurityEvent.event_type,
             SecurityEvent.severity,
             func.count(SecurityEvent.id).label('count'),
-            func.sum(func.case((SecurityEvent.resolved == True, 1), else_=0)).label('resolved_count')
-        ).where(
-            and_(
-                SecurityEvent.user_id == current_user.id,
-                SecurityEvent.timestamp >= start_date
-            )
-        ).group_by(SecurityEvent.event_type, SecurityEvent.severity)
+            func.sum(case((SecurityEvent.resolved == True, 1), else_=0)).label('resolved_count')
+        ).where(security_user_conditions).group_by(SecurityEvent.event_type, SecurityEvent.severity)
         
         security_result = await db.execute(security_query)
         security_events = []
@@ -152,12 +155,15 @@ async def export_audit_logs(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_optional_user)
 ):
-    """Export audit logs in CSV or JSON format"""
+    """Export audit logs in CSV or JSON format (optional auth)"""
     try:
-        # Build query for user's logs
-        query = select(AuditLog).where(AuditLog.user_id == current_user.id)
+        # Build query - filter by user if authenticated
+        if current_user and current_user.get("sub"):
+            query = select(AuditLog).where(AuditLog.user_id == current_user["sub"])
+        else:
+            query = select(AuditLog)
         
         # Apply date filters if provided
         if start_date:
@@ -187,12 +193,15 @@ async def get_security_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_optional_user)
 ):
-    """Get security-related audit events for the current user"""
+    """Get security-related audit events (optional auth for hackathon demo)"""
     try:
-        # Build query
-        query = select(SecurityEvent).where(SecurityEvent.user_id == current_user.id)
+        # Build query - filter by user if authenticated
+        if current_user and current_user.get("sub"):
+            query = select(SecurityEvent).where(SecurityEvent.user_id == current_user["sub"])
+        else:
+            query = select(SecurityEvent)
         
         # Get total count
         count_query = select(func.count()).select_from(query.subquery())
@@ -215,7 +224,7 @@ async def get_security_events(
                 "event_type": event.event_type,
                 "severity": event.severity,
                 "user_id": event.user_id,
-                "description": event.description,
+                "description": getattr(event, 'description', f"{event.event_type} - {event.severity} severity"),
                 "timestamp": event.timestamp.isoformat() + "Z",
                 "ip_address": event.ip_address,
                 "user_agent": event.user_agent,
@@ -235,5 +244,3 @@ async def get_security_events(
     except Exception as e:
         logger.error(f"Error getting security events: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-            # // done hadiqa

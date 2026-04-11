@@ -10,7 +10,6 @@ from openai_agents import Agent, Runner, RunConfig, AsyncOpenAI, OpenAIChatCompl
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-    # // done hadiqa
 
 # Configure OpenAI Agents SDK
 agents_config = None

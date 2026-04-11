@@ -38,6 +38,8 @@ In Chat Box type:
 "Schedule a team meeting tomorrow at 3 PM"
 ```
 
+Schedule a meeting with john doe tomorrow at 4:15 PM 12-apr-2026
+
 ### **Expected Response:**
 
 ```
@@ -134,6 +136,7 @@ GITHUB_TOKEN=ghp_your_token_here
 ```
 
 Create issue in HadiqaGohar/ciphermate-github-test-repo titled Test issue from CipherMate with body This is a test
+https://github.com/HadiqaGohar/ciphermate-github-test-repo
 
 ### **Expected Response:**
 
@@ -364,6 +367,3 @@ curl -H "Authorization: Bearer YOUR_BOT_TOKEN" \
 ```
 
 **Aur batao kya result aaya?** 🎯
-
-
-// done hadiqa

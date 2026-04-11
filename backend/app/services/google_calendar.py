@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.service_connection import ServiceConnection
-    # // done hadiqa
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +26,16 @@ class GoogleCalendarService:
         ]
     
     async def create_event(
-        self, 
-        db: AsyncSession, 
-        user_id: int, 
-        title: str, 
-        date: str, 
+        self,
+        db: AsyncSession,
+        user_id: int,
+        title: str,
+        date: str,
         time: str,
         duration_minutes: int = 60,
         description: str = None,
-        location: str = None
+        location: str = None,
+        timezone: str = None
     ) -> Dict[str, Any]:
         """Create a calendar event using Google Calendar API"""
         
@@ -52,17 +52,20 @@ class GoogleCalendarService:
             start_datetime = self._parse_datetime(date, time)
             end_datetime = start_datetime + timedelta(minutes=duration_minutes)
             
+            # Use provided timezone or default to Asia/Karachi
+            event_timezone = timezone or 'Asia/Karachi'
+
             # Create event object
             event = {
                 'summary': title,
                 'description': description or f"Event created by CipherMate AI Assistant",
                 'start': {
                     'dateTime': start_datetime.isoformat(),
-                    'timeZone': 'Asia/Karachi',
+                    'timeZone': event_timezone,
                 },
                 'end': {
                     'dateTime': end_datetime.isoformat(),
-                    'timeZone': 'Asia/Karachi',
+                    'timeZone': event_timezone,
                 },
             }
             
@@ -157,29 +160,46 @@ class GoogleCalendarService:
             raise Exception(f"Failed to list calendar events: {str(e)}")
     
     async def _get_user_credentials(self, db: AsyncSession, user_id: int) -> Optional[Credentials]:
-        """Get user's Google Calendar credentials from database"""
-        
+        """Get user's Google Calendar credentials from database or temp tokens"""
+
+        # First try: check temp_tokens (in-memory, for current session)
         try:
-            # Query for active Google service connection
+            from app.api.routes.google_calendar_auth import temp_tokens
+            if 'current' in temp_tokens:
+                token_data = temp_tokens['current']
+                logger.info("✅ Using temp token for Google Calendar")
+                return Credentials(
+                    token=token_data.get('access_token'),
+                    refresh_token=token_data.get('refresh_token'),
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=settings.GOOGLE_CLIENT_ID,
+                    client_secret=settings.GOOGLE_CLIENT_SECRET,
+                    scopes=token_data.get('scope', self.required_scopes).split() if isinstance(token_data.get('scope'), str) else self.required_scopes
+                )
+        except Exception as e:
+            logger.warning(f"Temp tokens not available: {e}")
+
+        # Second try: query database for stored connection
+        try:
             from sqlalchemy import select
-            
+
             query = select(ServiceConnection).where(
                 ServiceConnection.user_id == user_id,
                 ServiceConnection.service_name == "google",
                 ServiceConnection.is_active == True
             )
-            
+
             result = await db.execute(query)
             connection = result.scalar_one_or_none()
-            
+
             if not connection:
                 logger.warning(f"No active Google connection found for user {user_id}")
                 return None
-            
+
             if not connection.access_token:
                 logger.warning(f"No access token found for user {user_id}")
                 return None
-            
+
             # Create credentials object
             credentials = Credentials(
                 token=connection.access_token,
@@ -189,26 +209,26 @@ class GoogleCalendarService:
                 client_secret=settings.GOOGLE_CLIENT_SECRET,
                 scopes=connection.scopes or self.required_scopes
             )
-            
+
             # Check if credentials are valid and refresh if needed
             if credentials.expired and credentials.refresh_token:
                 try:
                     credentials.refresh(Request())
-                    
+
                     # Update the stored tokens
                     connection.access_token = credentials.token
                     if credentials.refresh_token:
                         connection.refresh_token = credentials.refresh_token
-                    
+
                     await db.commit()
                     logger.info(f"✅ Refreshed Google credentials for user {user_id}")
-                    
+
                 except Exception as refresh_error:
                     logger.error(f"Failed to refresh Google credentials: {refresh_error}")
                     return None
-            
+
             return credentials
-            
+
         except Exception as e:
             logger.error(f"Error getting user credentials: {e}")
             return None

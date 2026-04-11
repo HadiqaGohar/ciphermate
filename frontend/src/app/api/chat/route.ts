@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Try the backend endpoint
     try {
-      console.log("🚀 Calling backend:", `${BACKEND_URL}/api/v1/ai-agent/chat`);
+      console.log("🚀 Calling backend:", `${BACKEND_URL}/api/v1/agent/chat`);
       console.log("📤 Sending message:", body.message);
 
       // Test backend connectivity first
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ Backend health check passed");
 
-      const backendResponse = await fetch(`${BACKEND_URL}/api/v1/ai-agent/chat`, {
+      const backendResponse = await fetch(`${BACKEND_URL}/api/v1/agent/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Transform backend response to match frontend expectations
-        return NextResponse.json({
+        const transformedResponse = {
           message: backendResult.message || backendResult.response,
           intent_analysis: {
             intent_type:
@@ -97,9 +97,57 @@ export async function POST(request: NextRequest) {
             missing_permissions:
               backendResult.intent_analysis?.missing_permissions || [],
           },
-          requires_permission: backendResult.requires_permission || false,
+          requires_permission: backendResult.requires_permission || backendResult.requires_auth || false,
+          permission_grant_url: backendResult.permission_grant_url || null,
           action_id: backendResult.action_id || null,
-        });
+        };
+
+        // If this is a calendar/email/github/slack intent, trigger execute action flow
+        const actionableIntents = ["calendar_create_event", "email_send", "github_create_issue", "slack_send_message"];
+        if (actionableIntents.includes(transformedResponse.intent_analysis.intent_type)) {
+          console.log("🎯 Detected actionable intent:", transformedResponse.intent_analysis.intent_type);
+          
+          // Call execute action endpoint to get OAuth URL if needed
+          try {
+            const executeResponse = await fetch(`${BACKEND_URL}/api/v1/execute/action`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                intent_type: transformedResponse.intent_analysis.intent_type,
+                parameters: transformedResponse.intent_analysis.parameters,
+                action_id: transformedResponse.action_id
+              }),
+              signal: AbortSignal.timeout(10000),
+            });
+
+            if (executeResponse.ok) {
+              const executeResult = await executeResponse.json();
+              console.log("🔗 Execute action result:", {
+                success: executeResult.success,
+                requires_auth: executeResult.requires_auth,
+                auth_url: executeResult.auth_url ? "URL_PROVIDED" : "NO_URL"
+              });
+
+              // If requires auth, update the response with OAuth URL
+              if (executeResult.requires_auth && executeResult.auth_url) {
+                transformedResponse.requires_permission = true;
+                transformedResponse.permission_grant_url = executeResult.auth_url;
+                transformedResponse.message = executeResult.message || transformedResponse.message;
+              } else if (executeResult.success) {
+                // Action completed successfully
+                transformedResponse.message = executeResult.message || "✅ Action completed successfully!";
+                if (executeResult.event_link) {
+                  transformedResponse.message += `\n\n🔗 View event: ${executeResult.event_link}`;
+                }
+              }
+            }
+          } catch (executeError) {
+            console.error("❌ Execute action failed:", executeError);
+            // Continue with original response
+          }
+        }
+
+        return NextResponse.json(transformedResponse);
       } else {
         const errorText = await backendResponse.text();
         console.log("❌ Backend error:", backendResponse.status, errorText);
@@ -203,5 +251,3 @@ export async function POST(request: NextRequest) {
     });
   }
 }
-
-// done hadiqa

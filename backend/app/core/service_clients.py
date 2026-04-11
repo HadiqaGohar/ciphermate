@@ -14,7 +14,6 @@ from app.core.api_integration import APIIntegrationService, APIService, APIRespo
 from app.models.todo_task import ToDoTask, TaskStatus, TaskPriority
 
 logger = logging.getLogger(__name__)
-    # // done hadiqa
 
 
 class BaseServiceClient(ABC):

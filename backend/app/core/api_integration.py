@@ -19,7 +19,6 @@ from app.models.audit_log import AuditLog
 from app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
-    # // done hadiqa
 
 
 class APIServiceError(Exception):

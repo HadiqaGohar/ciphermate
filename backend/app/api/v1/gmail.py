@@ -99,4 +99,3 @@ async def gmail_status():
         "ready_to_send": settings.GMAIL_ENABLED and 'current' in temp_tokens,
         "auth_url": "/api/auth/gmail/login" if 'current' not in temp_tokens else None
     }
-        # // done hadiqa
