@@ -19,10 +19,6 @@ structlog>=24.0.0
 auth0-python>=4.0.0
 fastapi-limiter>=0.1.0
 bleach>=6.0.0
-<<<<<<< HEAD
-
-=======
->>>>>>> dcb5e57c3ed714a69e3d91fe1d32ff4a98cf0a32
 
 # Gmail API packages
 google-api-python-client>=2.0.0
