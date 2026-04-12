@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     APP_BASE_URL: str = "http://localhost:8080"
     
     # Database Configuration
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/ciphermate"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./ciphermate.db"
     
     # Redis Configuration
     REDIS_URL: str = "redis://localhost:6379"
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         """Get ALLOWED_ORIGINS as a list"""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
-    
+
     # Security Configuration
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = 60
     RATE_LIMIT_BURST_SIZE: int = 10
