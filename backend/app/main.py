@@ -12,12 +12,28 @@ from sqlalchemy.exc import SQLAlchemyError
 from .core.config import settings
 
 # Conditional imports based on database availability
-if not os.getenv("DISABLE_DATABASE", "false").lower() == "true":
-    from .core.database import engine, Base
-    from .core.session import session_manager
-    from .core.cache import cache_service
-    from .core.security_monitor import security_monitor
-    from .core.monitoring import cache_metrics_task, health_checker
+database_enabled = not os.getenv("DISABLE_DATABASE", "false").lower() == "true"
+
+if database_enabled:
+    try:
+        from .core.database import engine, Base
+        from .core.session import session_manager
+        from .core.cache import cache_service
+        from .core.security_monitor import security_monitor
+        from .core.monitoring import cache_metrics_task, health_checker
+        from .core.monitoring_middleware import add_monitoring_middleware
+        database_imports_success = True
+    except ImportError as e:
+        print(f"Database imports failed: {e}")
+        database_imports_success = False
+        engine = None
+        Base = None
+        session_manager = None
+        cache_service = None
+        security_monitor = None
+        cache_metrics_task = None
+        health_checker = None
+        add_monitoring_middleware = lambda x: None
 else:
     # Mock objects for no-database mode
     engine = None
@@ -27,6 +43,8 @@ else:
     security_monitor = None
     cache_metrics_task = None
     health_checker = None
+    add_monitoring_middleware = lambda x: None
+    database_imports_success = False
 
 from .api.v1.router import api_router
 from .core.exceptions import CipherMateException
@@ -38,7 +56,6 @@ from .core.error_handlers import (
     generic_exception_handler
 )
 from .core.middleware import add_middleware
-from .core.monitoring_middleware import add_monitoring_middleware
 
 # Import models to ensure they are registered with SQLAlchemy
 from .models import (
@@ -69,32 +86,38 @@ async def lifespan(app: FastAPI):
     # Startup
     print("Starting CipherMate Backend...")
     
-    # Initialize based on database availability
-    if not os.getenv("DISABLE_DATABASE", "false").lower() == "true":
+    # Initialize based on database availability and import success
+    if database_enabled and database_imports_success:
         # Database mode
         print("Database mode enabled")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        
-        # Start background tasks
-        cleanup_task = asyncio.create_task(cleanup_sessions_task())
-        metrics_task = asyncio.create_task(cache_metrics_task())
-        
-        # Start security monitoring
-        security_monitor.start_monitoring()
-        
-        # Register health checks
-        async def database_health_check():
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute("SELECT 1")
-                return {"status": "healthy", "connected": True}
-            except Exception as e:
-                return {"status": "unhealthy", "error": str(e), "connected": False}
-        
-        health_checker.register_check("database", database_health_check)
-        
-        print("CipherMate Backend started successfully with database")
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            
+            # Start background tasks
+            cleanup_task = asyncio.create_task(cleanup_sessions_task())
+            metrics_task = asyncio.create_task(cache_metrics_task())
+            
+            # Start security monitoring
+            security_monitor.start_monitoring()
+            
+            # Register health checks
+            async def database_health_check():
+                try:
+                    async with engine.begin() as conn:
+                        await conn.execute("SELECT 1")
+                    return {"status": "healthy", "connected": True}
+                except Exception as e:
+                    return {"status": "unhealthy", "error": str(e), "connected": False}
+            
+            health_checker.register_check("database", database_health_check)
+            
+            print("CipherMate Backend started successfully with database")
+        except Exception as e:
+            print(f"Database initialization failed: {e}")
+            cleanup_task = None
+            metrics_task = None
+            print("Falling back to no-database mode")
     else:
         # No database mode
         print("No database mode - using mock services")
@@ -106,14 +129,20 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("Shutting down CipherMate Backend...")
-    if not os.getenv("DISABLE_DATABASE", "false").lower() == "true":
-        if cleanup_task:
-            cleanup_task.cancel()
-        if metrics_task:
-            metrics_task.cancel()
-        await session_manager.close()
-        await cache_service.close()
-        await security_monitor.shutdown()
+    if database_enabled and database_imports_success:
+        try:
+            if cleanup_task:
+                cleanup_task.cancel()
+            if metrics_task:
+                metrics_task.cancel()
+            if session_manager:
+                await session_manager.close()
+            if cache_service:
+                await cache_service.close()
+            if security_monitor:
+                await security_monitor.shutdown()
+        except Exception as e:
+            print(f"Shutdown error: {e}")
     print("CipherMate Backend shutdown complete")
 
 

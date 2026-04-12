@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8080
 ENV APP_ENV=production
 ENV DATABASE_URL=sqlite+aiosqlite:///./ciphermate.db
-ENV DISABLE_DATABASE=false
+ENV DISABLE_DATABASE=true
 ENV DISABLE_REDIS=true
 
 WORKDIR /app
@@ -39,5 +39,5 @@ USER app
 # Expose port
 EXPOSE 8080
 
-# Use the fixed app.main with database support
+# Use the fixed app.main with proper error handling
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
