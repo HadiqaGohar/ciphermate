@@ -78,14 +78,16 @@ def generate_google_calendar_auth_url(user_id: str) -> str:
         logger.warning("Google Client ID not configured")
         return ""
 
-    # Use production URL for Vercel deployment, localhost for development
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    if not frontend_url or frontend_url == 'http://localhost:3000':
-        # Check if we're in production by looking at other settings
-        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
-            frontend_url = 'https://ciphermate.vercel.app'
-        else:
-            frontend_url = 'http://localhost:3000'
+    # More robust production detection
+    app_base_url = getattr(settings, 'APP_BASE_URL', '')
+    
+    # Force production URL if backend is running on Cloud Run
+    if 'run.app' in app_base_url or 'europe-west1' in app_base_url:
+        frontend_url = 'https://ciphermate.vercel.app'
+        logger.info("🔧 FORCE: Using production URL (Cloud Run detected)")
+    else:
+        frontend_url = 'http://localhost:3000'
+        logger.info("🔧 FORCE: Using localhost URL (local development)")
 
     auth_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
@@ -140,14 +142,16 @@ def generate_github_auth_url(user_id: str) -> str:
         logger.warning("GitHub Client ID not configured")
         return ""
 
-    # Use production URL for Vercel deployment, localhost for development
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    if not frontend_url or frontend_url == 'http://localhost:3000':
-        # Check if we're in production by looking at other settings
-        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
-            frontend_url = 'https://ciphermate.vercel.app'
-        else:
-            frontend_url = 'http://localhost:3000'
+    # More robust production detection - check if backend is on Cloud Run
+    app_base_url = getattr(settings, 'APP_BASE_URL', '')
+    
+    # Force production URL if backend is running on Cloud Run
+    if 'run.app' in app_base_url or 'europe-west1' in app_base_url:
+        frontend_url = 'https://ciphermate.vercel.app'
+        logger.info("🔧 FORCE: Using production URL (Cloud Run detected)")
+    else:
+        frontend_url = 'http://localhost:3000'
+        logger.info("🔧 FORCE: Using localhost URL (local development)")
 
     auth_base_url = "https://github.com/login/oauth/authorize"
     params = {
@@ -158,8 +162,8 @@ def generate_github_auth_url(user_id: str) -> str:
     }
 
     logger.info(f"🔧 DEBUG: Generated GitHub auth URL for user: {user_id}")
-    logger.info(f"🔧 DEBUG: Frontend URL: {frontend_url}")
-    logger.info(f"🔧 DEBUG: APP_ENV: {getattr(settings, 'APP_ENV', 'not_set')}")
+    logger.info(f"🔧 DEBUG: APP_BASE_URL: {app_base_url}")
+    logger.info(f"🔧 DEBUG: Final Frontend URL: {frontend_url}")
     logger.info(f"🔧 DEBUG: Full redirect URI: {frontend_url}/api/auth/github/callback")
     
     return f"{auth_base_url}?{urlencode(params)}"
@@ -489,12 +493,19 @@ async def execute_action(
         email_result = await send_email_with_token(user_id, params, token_data)
         return ExecuteActionResponse(**email_result)
 
+    logger.info(f"🔧 DEBUG: Execute action called for intent: {intent_type}")
+    logger.info(f"🔧 DEBUG: User ID: {user_id}")
+    logger.info(f"🔧 DEBUG: Current user: {current_user}")
+    
     # Handle GitHub
     elif intent_type == "github_create_issue":
+        logger.info(f"🔧 DEBUG: GitHub create issue triggered for user: {user_id}")
         token_data = await get_user_service_token(user_id, "github", db)
 
         if not token_data:
+            logger.info(f"🔧 DEBUG: No GitHub token found, generating auth URL...")
             auth_url = generate_github_auth_url(user_id)
+            logger.info(f"🔧 DEBUG: Generated GitHub auth URL: {auth_url[:100]}...")
             return ExecuteActionResponse(
                 success=False,
                 requires_auth=True,
