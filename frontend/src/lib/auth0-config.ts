@@ -1,3 +1,4 @@
+
 // Auth0 configuration helper
 export const auth0Config = {
   domain: process.env.AUTH0_ISSUER_BASE_URL?.replace('https://', '') || '',

@@ -38,5 +38,5 @@ USER app
 # Expose port
 EXPOSE 8080
 
-# Use simple uvicorn command
-CMD uvicorn app.main_no_db:app --host 0.0.0.0 --port 8080 --workers 1
+# Use the correct uvicorn command with reload for development
+CMD python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8080

@@ -1,3 +1,4 @@
+
 """
 Simplified main.py for Cloud Run deployment testing
 """

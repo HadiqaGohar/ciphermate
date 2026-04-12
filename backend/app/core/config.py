@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> List[str]:
         """Get ALLOWED_ORIGINS as a list"""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
     
     # Security Configuration
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = 60
