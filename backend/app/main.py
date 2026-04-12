@@ -212,6 +212,13 @@ app.include_router(google_calendar_auth_router)
 from app.api.routes.github_auth import router as github_auth_router
 app.include_router(github_auth_router)
 
+# Add authentication patches for demo mode
+try:
+    from auth_integration import integrate_auth_patches
+    integrate_auth_patches(app)
+except ImportError:
+    print("⚠️  Authentication patches not found - using default auth")
+
 # Add exception handlers
 app.add_exception_handler(CipherMateException, ciphermate_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)

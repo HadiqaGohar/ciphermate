@@ -417,17 +417,19 @@ class SuspiciousActivityMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         client_ip = request.client.host if request.client else "unknown"
-        
-        # Check if IP is blocked by security monitor
-        if security_monitor.is_ip_blocked(client_ip):
-            security_metrics.increment_blocked_requests()
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "error": "IP_BLOCKED",
-                    "message": "Your IP has been temporarily blocked due to suspicious activity"
-                }
-            )
+
+        # Never block localhost or private IPs in development
+        if not client_ip.startswith(("127.", "10.", "192.168.", "172.")):
+            # Check if IP is blocked by security monitor
+            if security_monitor.is_ip_blocked(client_ip):
+                security_metrics.increment_blocked_requests()
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "error": "IP_BLOCKED",
+                        "message": "Your IP has been temporarily blocked due to suspicious activity"
+                    }
+                )
         
         # Process request
         response = await call_next(request)

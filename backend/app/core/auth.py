@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any
+import os
 import httpx
 from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -20,9 +21,15 @@ class Auth0JWTBearer:
     def __init__(self):
         self.jwks_client = None
         self._jwks_cache: Optional[Dict[str, Any]] = None
+        self._demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
+        self._skip_auth0 = os.getenv("DISABLE_AUTH0_VERIFICATION", "false").lower() == "true"
     
     async def get_jwks(self) -> Dict[str, Any]:
         """Get JWKS from Auth0"""
+        # Skip JWKS fetch in demo mode
+        if self._demo_mode or self._skip_auth0:
+            return {"keys": []}
+        
         if self._jwks_cache is None:
             try:
                 async with httpx.AsyncClient() as client:
@@ -251,25 +258,23 @@ async def get_current_user(
         return user_info
     except HTTPException:
         # Return default user for development
-        logger.warning("Auth failed, using dev user for development")
-        return {
-            "sub": "dev_user",
-            "email": "dev@local",
-            "name": "Dev User",
-            "email_verified": False,
-            "permissions": [],
-            "scope": []
-        }
+        logger.warning("Auth failed, returning dev user for development")
+        from app.models.user import User
+        return User(
+            id=0,
+            auth0_id="dev_user",
+            email="dev@local",
+            name="Dev User"
+        )
     except Exception as e:
         logger.error(f"get_current_user error: {e}")
-        return {
-            "sub": "dev_user",
-            "email": "dev@local",
-            "name": "Dev User",
-            "email_verified": False,
-            "permissions": [],
-            "scope": []
-        }
+        from app.models.user import User
+        return User(
+            id=0,
+            auth0_id="dev_user",
+            email="dev@local",
+            name="Dev User"
+        )
 
 async def get_optional_user(
     request: Request,
