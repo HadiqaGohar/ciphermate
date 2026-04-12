@@ -129,3 +129,57 @@ jspm_packages/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# Custom secrets and credentials (CipherMate specific)
+*.env.production
+*.env.actual
+.env.backup
+.env.*.local
+fix-all-issues.sh
+setup-credentials.sh
+quick-fix.sh
+switch-env.sh
+restart-frontend.sh
+deploy-cloud.sh
+test-*.js
+validate-config.py
+test_*.py
+*secret*
+*credentials*
+*.pem
+*.key
+*.cert
+
+# Audit logs
+frontend/src/app/api/audit/logs/
+audit-logs/
+
+# Temporary deployment files
+*.tmp
+*.temp
+.cache
+
+# Backend specific
+backend/.env*
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# Frontend specific
+frontend/.env*
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.vercel/
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+e2e-results/
+
+# Debug files
+*.debug.ts
+middleware.debug.ts
+debug-*.js
