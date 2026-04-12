@@ -452,6 +452,10 @@ async def execute_action(
     intent_type = request.intent_type
     params = request.parameters
 
+    logger.info(f"🔧 DEBUG: Execute action called for intent: {intent_type}")
+    logger.info(f"🔧 DEBUG: User ID: {user_id}")
+    logger.info(f"🔧 DEBUG: Current user: {current_user}")
+
     logger.info(f"Executing action: {intent_type} for user: {user_id}")
 
     # Handle Calendar Events
@@ -493,10 +497,6 @@ async def execute_action(
         email_result = await send_email_with_token(user_id, params, token_data)
         return ExecuteActionResponse(**email_result)
 
-    logger.info(f"🔧 DEBUG: Execute action called for intent: {intent_type}")
-    logger.info(f"🔧 DEBUG: User ID: {user_id}")
-    logger.info(f"🔧 DEBUG: Current user: {current_user}")
-    
     # Handle GitHub
     elif intent_type == "github_create_issue":
         logger.info(f"🔧 DEBUG: GitHub create issue triggered for user: {user_id}")
