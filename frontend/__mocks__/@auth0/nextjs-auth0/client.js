@@ -1,3 +1,4 @@
+
 // Mock for @auth0/nextjs-auth0/client
 const React = require('react');
 
