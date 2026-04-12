@@ -74,6 +74,14 @@ async def github_callback(request: Request):
             """
             return HTMLResponse(content=html_content, status_code=500)
 
+        # Get frontend URL dynamically
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        if not frontend_url or frontend_url == 'http://localhost:3000':
+            if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+                frontend_url = 'https://ciphermate.vercel.app'
+            else:
+                frontend_url = 'http://localhost:3000'
+
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 "https://github.com/login/oauth/access_token",
@@ -83,7 +91,7 @@ async def github_callback(request: Request):
                     "client_secret": client_secret,
                     "code": code,
                     "state": state,
-                    "redirect_uri": "http://localhost:3000/api/auth/github/callback"
+                    "redirect_uri": f"{frontend_url}/api/auth/github/callback"
                 },
                 timeout=10.0
             )

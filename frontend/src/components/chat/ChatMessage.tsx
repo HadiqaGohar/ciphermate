@@ -16,8 +16,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
           ? 'bg-blue-600 text-white' 
           : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
       }`}>
-        <div className="text-sm">
-          {message.content}
+        <div className="text-sm whitespace-pre-wrap">
+          {String(message.content || '')}
         </div>
         
         {/* Show intent analysis for assistant messages */}

@@ -740,9 +740,17 @@ def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str
                 logger.error("Google client ID not configured")
                 return None
             
+            # Get frontend URL dynamically
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            if not frontend_url or frontend_url == 'http://localhost:3000':
+                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+                    frontend_url = 'https://ciphermate.vercel.app'
+                else:
+                    frontend_url = 'http://localhost:3000'
+            
             params = {
                 "client_id": settings.GOOGLE_CLIENT_ID,
-                "redirect_uri": "http://localhost:3000/api/auth/google/callback",
+                "redirect_uri": f"{frontend_url}/api/auth/google/callback",
                 "response_type": "code",
                 "scope": "https://www.googleapis.com/auth/calendar",
                 "access_type": "offline",
@@ -757,9 +765,17 @@ def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str
                 logger.error("Google client ID not configured")
                 return None
             
+            # Get frontend URL dynamically
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            if not frontend_url or frontend_url == 'http://localhost:3000':
+                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+                    frontend_url = 'https://ciphermate.vercel.app'
+                else:
+                    frontend_url = 'http://localhost:3000'
+            
             params = {
                 "client_id": settings.GOOGLE_CLIENT_ID,
-                "redirect_uri": "http://localhost:3000/api/auth/gmail/callback",
+                "redirect_uri": f"{frontend_url}/api/auth/gmail/callback",
                 "response_type": "code",
                 "scope": "https://www.googleapis.com/auth/gmail.send",
                 "access_type": "offline",
@@ -774,9 +790,17 @@ def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str
                 logger.error("GitHub client ID not configured")
                 return None
             
+            # Get frontend URL dynamically
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            if not frontend_url or frontend_url == 'http://localhost:3000':
+                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+                    frontend_url = 'https://ciphermate.vercel.app'
+                else:
+                    frontend_url = 'http://localhost:3000'
+            
             params = {
                 "client_id": settings.GITHUB_CLIENT_ID,
-                "redirect_uri": "http://localhost:3000/api/auth/github/callback",
+                "redirect_uri": f"{frontend_url}/api/auth/github/callback",
                 "scope": "repo",
                 "state": f"state_{secrets.token_urlsafe(16)}"
             }

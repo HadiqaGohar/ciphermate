@@ -78,10 +78,19 @@ def generate_google_calendar_auth_url(user_id: str) -> str:
         logger.warning("Google Client ID not configured")
         return ""
 
+    # Use production URL for Vercel deployment, localhost for development
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if not frontend_url or frontend_url == 'http://localhost:3000':
+        # Check if we're in production by looking at other settings
+        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+            frontend_url = 'https://ciphermate.vercel.app'
+        else:
+            frontend_url = 'http://localhost:3000'
+
     auth_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": client_id,
-        "redirect_uri": "http://localhost:3000/api/auth/google/callback",
+        "redirect_uri": f"{frontend_url}/api/auth/google/callback",
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/calendar",
         "access_type": "offline",
@@ -89,7 +98,7 @@ def generate_google_calendar_auth_url(user_id: str) -> str:
         "state": f"calendar_{secrets.token_urlsafe(16)}"
     }
 
-    logger.info(f"Generated Google Calendar auth URL for user: {user_id}")
+    logger.info(f"Generated Google Calendar auth URL for user: {user_id}, redirect: {frontend_url}/api/auth/google/callback")
     return f"{auth_base_url}?{urlencode(params)}"
 
 
@@ -100,10 +109,19 @@ def generate_google_gmail_auth_url(user_id: str) -> str:
         logger.warning("Google Client ID not configured")
         return ""
 
+    # Use production URL for Vercel deployment, localhost for development
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if not frontend_url or frontend_url == 'http://localhost:3000':
+        # Check if we're in production by looking at other settings
+        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+            frontend_url = 'https://ciphermate.vercel.app'
+        else:
+            frontend_url = 'http://localhost:3000'
+
     auth_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": client_id,
-        "redirect_uri": "http://localhost:3000/api/auth/google/callback",
+        "redirect_uri": f"{frontend_url}/api/auth/google/callback",
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/gmail.send",
         "access_type": "offline",
@@ -111,7 +129,7 @@ def generate_google_gmail_auth_url(user_id: str) -> str:
         "state": secrets.token_urlsafe(32)
     }
 
-    logger.info(f"Generated Google Gmail auth URL for user: {user_id}")
+    logger.info(f"Generated Google Gmail auth URL for user: {user_id}, redirect: {frontend_url}/api/auth/google/callback")
     return f"{auth_base_url}?{urlencode(params)}"
 
 
@@ -122,15 +140,28 @@ def generate_github_auth_url(user_id: str) -> str:
         logger.warning("GitHub Client ID not configured")
         return ""
 
+    # Use production URL for Vercel deployment, localhost for development
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if not frontend_url or frontend_url == 'http://localhost:3000':
+        # Check if we're in production by looking at other settings
+        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+            frontend_url = 'https://ciphermate.vercel.app'
+        else:
+            frontend_url = 'http://localhost:3000'
+
     auth_base_url = "https://github.com/login/oauth/authorize"
     params = {
         "client_id": client_id,
-        "redirect_uri": "http://localhost:3000/api/auth/github/callback",
+        "redirect_uri": f"{frontend_url}/api/auth/github/callback",
         "scope": "repo",
         "state": secrets.token_urlsafe(32)
     }
 
-    logger.info(f"Generated GitHub auth URL for user: {user_id}")
+    logger.info(f"🔧 DEBUG: Generated GitHub auth URL for user: {user_id}")
+    logger.info(f"🔧 DEBUG: Frontend URL: {frontend_url}")
+    logger.info(f"🔧 DEBUG: APP_ENV: {getattr(settings, 'APP_ENV', 'not_set')}")
+    logger.info(f"🔧 DEBUG: Full redirect URI: {frontend_url}/api/auth/github/callback")
+    
     return f"{auth_base_url}?{urlencode(params)}"
 
 
@@ -141,15 +172,24 @@ def generate_slack_auth_url(user_id: str) -> str:
         logger.warning("Slack Client ID not configured")
         return ""
 
+    # Use production URL for Vercel deployment, localhost for development
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if not frontend_url or frontend_url == 'http://localhost:3000':
+        # Check if we're in production by looking at other settings
+        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+            frontend_url = 'https://ciphermate.vercel.app'
+        else:
+            frontend_url = 'http://localhost:3000'
+
     auth_base_url = "https://slack.com/oauth/v2/authorize"
     params = {
         "client_id": client_id,
-        "redirect_uri": "http://localhost:3000/api/auth/slack/callback",
+        "redirect_uri": f"{frontend_url}/api/auth/slack/callback",
         "scope": "chat:write",
         "state": secrets.token_urlsafe(32)
     }
 
-    logger.info(f"Generated Slack auth URL for user: {user_id}")
+    logger.info(f"Generated Slack auth URL for user: {user_id}, redirect: {frontend_url}/api/auth/slack/callback")
     return f"{auth_base_url}?{urlencode(params)}"
 
 

@@ -85,7 +85,17 @@ async def exchange_token(request: Request):
     try:
         body = await request.json()
         code = body.get("code")
-        redirect_uri = body.get("redirect_uri", "http://localhost:3000/api/auth/google/callback")
+        redirect_uri = body.get("redirect_uri")
+        
+        # If no redirect_uri provided, determine it dynamically
+        if not redirect_uri:
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            if not frontend_url or frontend_url == 'http://localhost:3000':
+                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+                    frontend_url = 'https://ciphermate.vercel.app'
+                else:
+                    frontend_url = 'http://localhost:3000'
+            redirect_uri = f"{frontend_url}/api/auth/google/callback"
 
         if not code:
             raise HTTPException(status_code=400, detail="Authorization code is required")

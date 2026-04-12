@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # CORS Configuration
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,https://localhost:3000"
     
+    # Frontend URL for OAuth redirects
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     @property
     def allowed_origins_list(self) -> List[str]:
         """Get ALLOWED_ORIGINS as a list"""

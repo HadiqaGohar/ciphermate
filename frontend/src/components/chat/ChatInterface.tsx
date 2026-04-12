@@ -260,11 +260,11 @@ export default function ChatInterface({ user, session }: ChatInterfaceProps) {
         );
         console.log("🔗 OAuth URL:", data.permission_grant_url);
 
-        // Open OAuth popup
+        // Open OAuth popup with proper window features
         const popup = window.open(
           data.permission_grant_url,
           "oauth_popup",
-          "width=600,height=700,scrollbars=yes,resizable=yes"
+          "width=600,height=700,scrollbars=yes,resizable=yes,noopener=no,noreferrer=no"
         );
 
         // Listen for OAuth completion

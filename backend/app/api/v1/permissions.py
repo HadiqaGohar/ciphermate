@@ -703,5 +703,11 @@ def _get_service_description(service_name: str) -> str:
 def _get_frontend_url() -> str:
     """Get frontend URL for redirects"""
     from app.core.config import settings
-    # In production, this would be the actual frontend URL
-    return "http://localhost:3000"
+    # Get frontend URL dynamically
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    if not frontend_url or frontend_url == 'http://localhost:3000':
+        if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
+            frontend_url = 'https://ciphermate.vercel.app'
+        else:
+            frontend_url = 'http://localhost:3000'
+    return frontend_url
