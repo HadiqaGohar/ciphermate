@@ -351,17 +351,49 @@ class TokenVaultService:
                     raise TokenExpiredError(f"Token expired for service {service_name}")
 
                 # Retrieve from Auth0 vault (will fail if management API unavailable)
+                logger.info(f"🔍 About to call _retrieve_from_vault_with_retry for {service_name}")
+                logger.info(f"   connection.user_id={connection.user_id}, vault_id={connection.token_vault_id}")
+                logger.info(f"   metadata_json type={type(connection.metadata_json)}")
+                logger.info(f"   metadata_json={connection.metadata_json}")
+                
                 try:
                     token_data = await self._retrieve_from_vault_with_retry(
                         str(connection.user_id), connection.token_vault_id
                     )
+                    logger.info(f"✅ Retrieved token from Auth0 vault for {service_name}, token_data type: {type(token_data)}")
                 except (TokenVaultError, Exception) as e:
                     # Auth0 unavailable, use token from metadata_json
-                    logger.warning(f"Auth0 vault retrieval failed: {e}, using stored token")
-                    if connection.metadata_json and "vault_data" in connection.metadata_json:
-                        token_data = connection.metadata_json["vault_data"].get("token")
+                    logger.warning(f"Auth0 vault retrieval failed: {type(e).__name__}: {e}")
+                    logger.info(f"   Fallback to metadata_json for {service_name}")
+                    
+                    # Parse metadata_json (might be string or dict depending on SQLAlchemy/SQLite behavior)
+                    metadata = connection.metadata_json
+                    logger.info(f"   metadata type: {type(metadata)}")
+                    
+                    if isinstance(metadata, str):
+                        try:
+                            import json
+                            metadata = json.loads(metadata)
+                            logger.info(f"✅ Parsed metadata_json from string, keys: {metadata.keys()}")
+                        except json.JSONDecodeError as json_err:
+                            logger.error(f"Failed to parse metadata_json: {json_err}")
+                            metadata = {}
+                    elif isinstance(metadata, dict):
+                        logger.info(f"metadata_json is already dict, keys: {metadata.keys()}")
                     else:
-                        raise
+                        logger.error(f"metadata_json unexpected type: {type(metadata)}")
+                        metadata = {}
+
+                    if metadata and "vault_data" in metadata:
+                        token_data = metadata["vault_data"].get("token")
+                        logger.info(f"token_data from vault_data.token: type={type(token_data)}")
+                        if token_data:
+                            logger.info(f"✅ Retrieved token from metadata_json for {service_name}")
+                            logger.info(f"   Token keys: {token_data.keys() if isinstance(token_data, dict) else 'N/A'}")
+                    else:
+                        logger.error(f"metadata_json missing 'vault_data' for {service_name}")
+                        if metadata:
+                            logger.error(f"   metadata keys: {metadata.keys() if isinstance(metadata, dict) else 'N/A'}")
 
                 if token_data:
                     connection.last_used_at = datetime.now(timezone.utc)
@@ -369,6 +401,8 @@ class TokenVaultService:
                     logger.info(f"Token retrieved for service {service_name}")
                     return token_data
                 else:
+                    logger.error(f"❌ Token data is None for {service_name}, deactivating connection")
+                    logger.error(f"metadata_json content: {connection.metadata_json}")
                     connection.is_active = False
                     await db.commit()
                     raise TokenNotFoundError(f"Token not found for service {service_name}")

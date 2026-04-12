@@ -387,21 +387,24 @@ async def execute_action_simple(
                     )
                 result = f"❌ Cannot create calendar event: {str(e)}"
         elif agent_action.action == "github_create_issue":
-            # Real GitHub API integration
-            from app.core.token_vault import token_vault_service
-            
-            try:
-                user_id_str = str(user_id)
-                token_data = await token_vault_service.retrieve_token(
-                    user_id=user_id_str,
-                    service_name="github",
-                    auto_refresh=False
-                )
+            # Real GitHub API integration - DIRECT DATABASE READ (simpler approach)
+            import json
+            from sqlalchemy import select, text
+            from app.models.service_connection import ServiceConnection
 
-                if not token_data:
-                    # Check local cache fallback
-                    logger.warning(f"No GitHub token found for user {user_id}, checking local cache")
-                    # Return requires_auth status so frontend can retry OAuth
+            try:
+                # Direct database query to get GitHub token (bypass token_vault complexity)
+                result = await db.execute(
+                    text("""
+                        SELECT metadata_json FROM service_connections 
+                        WHERE service_name = 'github' AND is_active = 1 
+                        ORDER BY created_at DESC LIMIT 1
+                    """)
+                )
+                row = result.fetchone()
+                
+                if not row:
+                    logger.warning("No active GitHub connection found in database")
                     agent_action.status = "pending"
                     await db.commit()
                     return ActionExecutionResponse(
@@ -410,50 +413,74 @@ async def execute_action_simple(
                         result="🔐 GitHub authentication required. Please connect your GitHub account.",
                         execution_time_ms=0
                     )
-
-                access_token = token_data.get('access_token')
+                
+                # Parse metadata_json (might be string or dict)
+                metadata = row[0]
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                        logger.info("✅ Parsed metadata_json from string")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse metadata_json: {e}")
+                        metadata = {}
+                
+                # Extract token
+                access_token = None
+                if metadata and "vault_data" in metadata:
+                    token_data = metadata["vault_data"].get("token")
+                    if token_data:
+                        access_token = token_data.get("access_token")
+                        logger.info(f"✅ Extracted GitHub token from database, keys: {token_data.keys()}")
+                
                 if not access_token:
-                    logger.error(f"GitHub token data structure: {token_data}")
-                    result = "❌ Invalid GitHub token: missing access_token"
+                    logger.error(f"GitHub token extraction failed. metadata keys: {metadata.keys() if isinstance(metadata, dict) else type(metadata)}")
+                    agent_action.status = "pending"
+                    await db.commit()
+                    return ActionExecutionResponse(
+                        action_id=agent_action.id,
+                        status="requires_auth",
+                        result="🔐 GitHub token not found in database. Please reconnect your GitHub account.",
+                        execution_time_ms=0
+                    )
+                
+                logger.info(f"Creating GitHub issue in {agent_action.parameters.get('repo', '')} with token: {access_token[:20]}...")
+
+                import httpx
+                repo = agent_action.parameters.get('repo', '')
+                title = agent_action.parameters.get('title', 'New issue from CipherMate')
+                body = agent_action.parameters.get('body', '')
+
+                # Parse repo from format "owner/repo"
+                if '/' in repo:
+                    owner, repo_name = repo.split('/', 1)
+
+                    # Call GitHub API to create issue
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(
+                            f"https://api.github.com/repos/{owner}/{repo_name}/issues",
+                            headers={
+                                "Authorization": f"token {access_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            json={
+                                "title": title,
+                                "body": body
+                            },
+                            timeout=10.0
+                        )
+
+                        logger.info(f"GitHub API response: {response.status_code} - {response.text[:200]}")
+
+                        if response.status_code == 201:
+                            issue_data = response.json()
+                            issue_url = issue_data.get('html_url', '')
+                            issue_number = issue_data.get('number', '')
+                            result = f"✅ GitHub issue #{issue_number} created successfully!\n\n🔗 View issue: {issue_url}"
+                        else:
+                            error_msg = response.json().get('message', 'Unknown error')
+                            result = f"❌ Failed to create GitHub issue: {error_msg}"
                 else:
-                    import httpx
-                    repo = agent_action.parameters.get('repo', '')
-                    title = agent_action.parameters.get('title', 'New issue from CipherMate')
-                    body = agent_action.parameters.get('body', '')
-
-                    logger.info(f"Creating GitHub issue in {repo} with token: {access_token[:20]}...")
-
-                    # Parse repo from format "owner/repo"
-                    if '/' in repo:
-                        owner, repo_name = repo.split('/', 1)
-                        
-                        # Call GitHub API to create issue
-                        async with httpx.AsyncClient() as client:
-                            response = await client.post(
-                                f"https://api.github.com/repos/{owner}/{repo_name}/issues",
-                                headers={
-                                    "Authorization": f"token {access_token}",  # Changed from Bearer to token
-                                    "Accept": "application/vnd.github.v3+json"
-                                },
-                                json={
-                                    "title": title,
-                                    "body": body
-                                },
-                                timeout=10.0
-                            )
-
-                            logger.info(f"GitHub API response: {response.status_code} - {response.text[:200]}")
-
-                            if response.status_code == 201:
-                                issue_data = response.json()
-                                issue_url = issue_data.get('html_url', '')
-                                issue_number = issue_data.get('number', '')
-                                result = f"✅ GitHub issue #{issue_number} created successfully!\n\n🔗 View issue: {issue_url}"
-                            else:
-                                error_msg = response.json().get('message', 'Unknown error')
-                                result = f"❌ Failed to create GitHub issue: {error_msg}"
-                    else:
-                        result = f"❌ Invalid repository format: {repo}. Use 'owner/repo'"
+                    result = f"❌ Invalid repository format: {repo}. Use 'owner/repo'"
             except Exception as e:
                 logger.error(f"GitHub issue creation error: {e}")
                 result = f"❌ Cannot create GitHub issue: {str(e)}"

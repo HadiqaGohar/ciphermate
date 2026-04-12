@@ -48,9 +48,26 @@ async def get_user_service_token(user_id: str, service_name: str, db: AsyncSessi
     except Exception as e:
         logger.warning(f"Error checking calendar temp_tokens: {e}")
     
-    # Fallback to database (future implementation)
-    logger.info(f"ℹ️ No temp token found for {service_name}, would check database in production")
-    return None
+    # Fallback to TokenVault database
+    try:
+        from app.core.token_vault import token_vault_service
+        
+        logger.info(f"🔍 Checking TokenVault for {service_name} token for user {user_id}")
+        token_data = await token_vault_service.retrieve_token(
+            user_id=str(user_id),
+            service_name=service_name,
+            auto_refresh=True
+        )
+        
+        if token_data:
+            logger.info(f"✅ Retrieved {service_name} token from TokenVault for user {user_id}")
+            return token_data
+        else:
+            logger.info(f"ℹ️ No {service_name} token found in TokenVault for user {user_id}")
+            return None
+    except Exception as e:
+        logger.warning(f"Error retrieving {service_name} token from TokenVault: {e}")
+        return None
 
 
 class ExecuteActionRequest(BaseModel):
