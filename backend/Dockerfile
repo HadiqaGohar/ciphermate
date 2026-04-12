@@ -39,4 +39,5 @@ USER app
 EXPOSE 8080
 
 # Use the working no-database version for production
-CMD ["python", "-m", "uvicorn", "app.main_no_db:app", "--host", "0.0.0.0", "--port", "8080"]
+# CMD ["python", "-m", "uvicorn", "app.main_no_db:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
