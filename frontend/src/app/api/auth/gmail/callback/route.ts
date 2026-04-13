@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
   try {
     // Exchange code for tokens using backend
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    
+    // Use production URL for Vercel deployment, localhost for local development
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://ciphermate.vercel.app' 
+      : 'http://localhost:3000';
 
     const response = await fetch(`${backendUrl}/api/v1/auth/gmail/callback`, {
       method: "POST",
@@ -44,7 +49,7 @@ export async function GET(request: NextRequest) {
       },
       body: JSON.stringify({
         code: code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"}/api/v1/auth/gmail/callback`
+        redirect_uri: `${frontendUrl}/api/v1/auth/gmail/callback`
       }),
     });
 

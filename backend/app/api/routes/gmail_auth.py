@@ -51,32 +51,54 @@ async def gmail_login(request: Request):
 
 @router.get("/callback")
 async def gmail_callback(request: Request):
-    """Handle Gmail OAuth callback (GET - for Authlib flow)"""
+    """Handle Gmail OAuth callback - redirect to frontend for token exchange"""
     try:
-        google = get_oauth_client()
-        token = await google.authorize_access_token(request)
-
-        logger.info(f"✅ Gmail token received: {token.get('access_token', '')[:50]}...")
-
-        # Store token (in production, save to database with user_id)
-        temp_tokens['current'] = {
-            'access_token': token.get('access_token'),
-            'refresh_token': token.get('refresh_token'),
-            'expires_in': token.get('expires_in'),
-            'scope': token.get('scope')
-        }
-
-        return {
-            "message": "✅ Gmail connected successfully!",
-            "access_token_received": True,
-            "expires_in": token.get('expires_in'),
-            "scopes": token.get('scope'),
-            "next_step": "You can now send real emails via the chat interface!"
-        }
+        code = request.query_params.get("code")
+        error = request.query_params.get("error")
+        state = request.query_params.get("state")
+        
+        # Get frontend URL from environment or request
+        frontend_url = getattr(settings, 'FRONTEND_URL', None)
+        if not frontend_url or frontend_url == 'http://localhost:3000':
+            # Default to production Vercel URL
+            frontend_url = "https://ciphermate.vercel.app"
+        
+        # If there's an error from Google, redirect to frontend with error
+        if error:
+            logger.error(f"Gmail OAuth error: {error}")
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(
+                url=f"{frontend_url}/api/v1/auth/gmail/callback?error={error}",
+                status_code=302
+            )
+        
+        # If no code received, redirect with error
+        if not code:
+            logger.error("No authorization code received")
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(
+                url=f"{frontend_url}/api/v1/auth/gmail/callback?error=no_code",
+                status_code=302
+            )
+        
+        # Redirect to frontend callback with code for token exchange
+        # Frontend will call POST /api/v1/auth/gmail/callback
+        logger.info(f"✅ Gmail code received, redirecting to frontend for token exchange")
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(
+            url=f"{frontend_url}/api/v1/auth/gmail/callback?code={code}&state={state or ''}",
+            status_code=302
+        )
 
     except Exception as e:
         logger.error(f"Gmail OAuth callback error: {e}")
-        raise HTTPException(status_code=500, detail=f"OAuth callback error: {str(e)}")
+        # Redirect to frontend with error
+        from starlette.responses import RedirectResponse
+        frontend_url = getattr(settings, 'FRONTEND_URL', "https://ciphermate.vercel.app")
+        return RedirectResponse(
+            url=f"{frontend_url}/api/v1/auth/gmail/callback?error=callback_failed",
+            status_code=302
+        )
 
 @router.post("/callback")
 async def exchange_token(request: Request):
