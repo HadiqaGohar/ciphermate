@@ -9,8 +9,10 @@ ENV APP_ENV=production
 ENV APP_BASE_URL=https://cipheremate-31299921364.europe-west1.run.app
 ENV FRONTEND_URL=https://ciphermate.vercel.app
 ENV DATABASE_URL=sqlite+aiosqlite:///./ciphermate.db
-ENV DISABLE_DATABASE=true
-ENV DISABLE_REDIS=true
+
+# false karo dono ko
+ENV DISABLE_DATABASE=false
+ENV DISABLE_REDIS=false
 
 WORKDIR /app
 
