@@ -88,6 +88,7 @@ async def exchange_token(request: Request):
         redirect_uri = body.get("redirect_uri")
         
         # If no redirect_uri provided, determine it dynamically
+        
         if not redirect_uri:
             frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
             logger.info(f"🔍 FRONTEND_URL from settings: {frontend_url}")

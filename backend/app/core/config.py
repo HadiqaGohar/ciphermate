@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     APP_BASE_URL: str = "http://localhost:8080"
     
     # Database Configuration
+    
     DATABASE_URL: str = "sqlite+aiosqlite:///./ciphermate.db"
     
     # Redis Configuration
