@@ -37,14 +37,14 @@ export async function GET(request: NextRequest) {
     // Exchange code for tokens using backend
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
 
-    const response = await fetch(`${backendUrl}/api/auth/gmail/callback`, {
+    const response = await fetch(`${backendUrl}/api/v1/auth/gmail/callback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         code: code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"}/api/auth/gmail/callback`
+        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"}/api/v1/auth/gmail/callback`
       }),
     });
 

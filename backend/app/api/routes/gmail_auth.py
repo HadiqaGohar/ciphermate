@@ -9,7 +9,7 @@ import logging
 import httpx
 from app.core.config import settings
 
-router = APIRouter(prefix="/api/auth/gmail", tags=["gmail-auth"])
+router = APIRouter(prefix="/api/v1/auth/gmail", tags=["gmail-auth"])
 logger = logging.getLogger(__name__)
 
 # Store tokens temporarily (in production, use database)
@@ -101,7 +101,7 @@ async def exchange_token(request: Request):
                 base_url = f"{scheme}://{host}"
                 logger.info(f"🔧 Using request-derived URL for Gmail: {base_url}")
             
-            redirect_uri = f"{base_url}/api/auth/gmail/callback"
+            redirect_uri = f"{base_url}/api/v1/auth/gmail/callback"
             logger.info(f"🔧 Using dynamic Gmail redirect URI: {redirect_uri}")
 
         if not code:

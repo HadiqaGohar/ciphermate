@@ -777,7 +777,7 @@ def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str
             
             params = {
                 "client_id": settings.GOOGLE_CLIENT_ID,
-                "redirect_uri": f"{frontend_url}/api/auth/google/callback",
+                "redirect_uri": f"{frontend_url}/api/v1/auth/google/callback",
                 "response_type": "code",
                 "scope": "https://www.googleapis.com/auth/calendar",
                 "access_type": "offline",
@@ -802,7 +802,7 @@ def _generate_oauth_url(service_name: str, user: Optional[User]) -> Optional[str
             
             params = {
                 "client_id": settings.GOOGLE_CLIENT_ID,
-                "redirect_uri": f"{frontend_url}/api/auth/gmail/callback",
+                "redirect_uri": f"{frontend_url}/api/v1/auth/gmail/callback",
                 "response_type": "code",
                 "scope": "https://www.googleapis.com/auth/gmail.send",
                 "access_type": "offline",

@@ -109,7 +109,7 @@ def generate_google_calendar_auth_url(user_id: str) -> str:
     auth_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": client_id,
-        "redirect_uri": f"{frontend_url}/api/auth/google/callback",
+        "redirect_uri": f"{frontend_url}/api/v1/auth/google/callback",
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/calendar",
         "access_type": "offline",
@@ -117,7 +117,7 @@ def generate_google_calendar_auth_url(user_id: str) -> str:
         "state": f"calendar_{secrets.token_urlsafe(16)}"
     }
 
-    logger.info(f"Generated Google Calendar auth URL for user: {user_id}, redirect: {frontend_url}/api/auth/google/callback")
+    logger.info(f"Generated Google Calendar auth URL for user: {user_id}, redirect: {frontend_url}/api/v1/auth/google/callback")
     return f"{auth_base_url}?{urlencode(params)}"
 
 
@@ -140,7 +140,7 @@ def generate_google_gmail_auth_url(user_id: str) -> str:
     auth_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": client_id,
-        "redirect_uri": f"{frontend_url}/api/auth/google/callback",
+        "redirect_uri": f"{frontend_url}/api/v1/auth/google/callback",
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/gmail.send",
         "access_type": "offline",
@@ -148,7 +148,7 @@ def generate_google_gmail_auth_url(user_id: str) -> str:
         "state": secrets.token_urlsafe(32)
     }
 
-    logger.info(f"Generated Google Gmail auth URL for user: {user_id}, redirect: {frontend_url}/api/auth/google/callback")
+    logger.info(f"Generated Google Gmail auth URL for user: {user_id}, redirect: {frontend_url}/api/v1/auth/google/callback")
     return f"{auth_base_url}?{urlencode(params)}"
 
 

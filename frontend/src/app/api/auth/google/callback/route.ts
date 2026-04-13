@@ -44,10 +44,9 @@ export async function GET(request: NextRequest) {
       },
       body: JSON.stringify({
         code: code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"}/api/auth/google/callback`
+        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"}/api/v1/auth/google/callback`
       }),
     });
-    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || "Failed to exchange token");
