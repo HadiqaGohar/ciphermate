@@ -128,7 +128,8 @@ Schedule a meeting with john doe tomorrow at 4:15 PM 12-apr-2026
 # backend/.env
 GITHUB_TOKEN=ghp_your_token_here
 ```
-
+ https://cipheremate-31299921364.europe-west1.run.app/api/auth/github/callback
+ 
 ### **Test Command:**
 
 ```
