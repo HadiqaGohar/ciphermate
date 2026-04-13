@@ -31,19 +31,26 @@ class RedisHandler:
             return
 
         try:
-            # Configure Redis client with SSL for Upstash
+            # Upstash requires rediss:// (TLS) or redis:// with ssl_cert_reqs=None
             if "upstash.io" in redis_url:
+                # Ensure URL uses rediss:// for TLS
+                if redis_url.startswith("redis://"):
+                    redis_url = redis_url.replace("redis://", "rediss://", 1)
+                    logger.info(f"🔒 Converting to TLS: {redis_url[:30]}...")
+                
                 self.redis_client = redis.from_url(
                     redis_url,
-                    ssl_cert_reqs=None,  # Disable SSL certificate verification for Upstash
-                    decode_responses=True
+                    ssl_cert_reqs=None,  # Disable SSL certificate verification
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_keepalive=True
                 )
                 logger.info("Connecting to Upstash Redis with TLS...")
             else:
                 self.redis_client = redis.from_url(redis_url, decode_responses=True)
                 logger.info(f"Connecting to Redis at {redis_url}...")
 
-            # Test connection
+            # Test connection with ping
             self.redis_client.ping()
             self.redis_available = True
             logger.info("✅ Redis connection established successfully")
