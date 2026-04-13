@@ -183,3 +183,4 @@ e2e-results/
 *.debug.ts
 middleware.debug.ts
 debug-*.js
+backend/.env.production

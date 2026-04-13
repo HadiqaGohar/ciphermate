@@ -88,13 +88,21 @@ async def exchange_token(request: Request):
         
         # If no redirect_uri provided, determine it dynamically
         if not redirect_uri:
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-            if not frontend_url or frontend_url == 'http://localhost:3000':
-                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
-                    frontend_url = 'https://ciphermate.vercel.app'
-                else:
-                    frontend_url = 'http://localhost:3000'
-            redirect_uri = f"{frontend_url}/api/auth/gmail/callback"
+            # Get the base URL from the request or environment
+            host = request.headers.get("host", "")
+            scheme = request.headers.get("x-forwarded-proto", "http")
+            
+            # Use APP_BASE_URL if configured, otherwise derive from request
+            if hasattr(settings, 'APP_BASE_URL') and settings.APP_BASE_URL and settings.APP_BASE_URL != "http://localhost:8080":
+                base_url = settings.APP_BASE_URL.strip()
+                logger.info(f"🔧 Using APP_BASE_URL for Gmail: {base_url}")
+            else:
+                # Derive from request headers (works in Cloud Run)
+                base_url = f"{scheme}://{host}"
+                logger.info(f"🔧 Using request-derived URL for Gmail: {base_url}")
+            
+            redirect_uri = f"{base_url}/api/auth/gmail/callback"
+            logger.info(f"🔧 Using dynamic Gmail redirect URI: {redirect_uri}")
 
         if not code:
             raise HTTPException(status_code=400, detail="Authorization code is required")

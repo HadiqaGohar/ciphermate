@@ -88,23 +88,25 @@ async def exchange_token(request: Request):
         redirect_uri = body.get("redirect_uri")
         
         # If no redirect_uri provided, determine it dynamically
-        #done
         if not redirect_uri:
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-            logger.info(f"🔍 FRONTEND_URL from settings: {frontend_url}")
-            logger.info(f"🔍 APP_ENV from settings: {getattr(settings, 'APP_ENV', 'NOT_SET')}")
+            # Get the base URL from the request or environment
+            host = request.headers.get("host", "")
+            scheme = request.headers.get("x-forwarded-proto", "http")
             
-            if not frontend_url or frontend_url == 'http://localhost:3000':
-                if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
-                    frontend_url = 'https://ciphermate.vercel.app'
-                    logger.info(f"🔧 Using production frontend URL: {frontend_url}")
-                else:
-                    frontend_url = 'http://localhost:3000'
-                    logger.info(f"🔧 Using localhost frontend URL: {frontend_url}")
+            # Use APP_BASE_URL if configured, otherwise derive from request
+            if hasattr(settings, 'APP_BASE_URL') and settings.APP_BASE_URL and settings.APP_BASE_URL != "http://localhost:8080":
+                base_url = settings.APP_BASE_URL.strip()
+                logger.info(f"🔧 Using APP_BASE_URL: {base_url}")
             else:
-                logger.info(f"🔧 Using configured frontend URL: {frontend_url}")
-                
-            redirect_uri = f"{frontend_url}/api/auth/google/callback"
+                # Derive from request headers (works in Cloud Run)
+                base_url = f"{scheme}://{host}"
+                logger.info(f"🔧 Using request-derived URL: {base_url}")
+            
+            redirect_uri = f"{base_url}/api/v1/auth/google/callback"
+            logger.info(f"🔧 Using dynamic redirect URI: {redirect_uri}")
+        
+        # Clean up any trailing spaces
+        redirect_uri = redirect_uri.strip()
 
         if not code:
             raise HTTPException(status_code=400, detail="Authorization code is required")

@@ -86,7 +86,7 @@ class Auth0JWTBearer:
                                 payload = jwt.decode(
                                     token,
                                     rsa_key,
-                                    algorithms=settings.AUTH0_ALGORITHMS,
+                                    algorithms=settings.auth0_algorithms_list,
                                     audience=settings.AUTH0_AUDIENCE,
                                     issuer=settings.auth0_issuer_url,
                                     options={"verify_aud": False, "verify_iss": False}  # More lenient for dev
@@ -122,7 +122,7 @@ class Auth0JWTBearer:
                 payload = jwt.decode(
                     token,
                     rsa_key,
-                    algorithms=settings.AUTH0_ALGORITHMS,
+                    algorithms=settings.auth0_algorithms_list,
                     audience=settings.AUTH0_AUDIENCE,
                     issuer=settings.auth0_issuer_url,
                 )

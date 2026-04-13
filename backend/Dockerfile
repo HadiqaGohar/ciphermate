@@ -4,15 +4,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PORT=8080
 ENV APP_ENV=production
-ENV APP_BASE_URL=https://cipheremate-31299921364.europe-west1.run.app
-ENV FRONTEND_URL=https://ciphermate.vercel.app
-ENV DATABASE_URL=sqlite+aiosqlite:///./ciphermate.db
-
-# false karo dono ko
-ENV DISABLE_DATABASE=false
-ENV DISABLE_REDIS=false
 
 WORKDIR /app
 
