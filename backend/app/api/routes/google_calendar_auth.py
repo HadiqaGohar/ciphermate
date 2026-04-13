@@ -90,11 +90,19 @@ async def exchange_token(request: Request):
         # If no redirect_uri provided, determine it dynamically
         if not redirect_uri:
             frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            logger.info(f"🔍 FRONTEND_URL from settings: {frontend_url}")
+            logger.info(f"🔍 APP_ENV from settings: {getattr(settings, 'APP_ENV', 'NOT_SET')}")
+            
             if not frontend_url or frontend_url == 'http://localhost:3000':
                 if hasattr(settings, 'APP_ENV') and settings.APP_ENV == 'production':
                     frontend_url = 'https://ciphermate.vercel.app'
+                    logger.info(f"🔧 Using production frontend URL: {frontend_url}")
                 else:
                     frontend_url = 'http://localhost:3000'
+                    logger.info(f"🔧 Using localhost frontend URL: {frontend_url}")
+            else:
+                logger.info(f"🔧 Using configured frontend URL: {frontend_url}")
+                
             redirect_uri = f"{frontend_url}/api/auth/google/callback"
 
         if not code:
