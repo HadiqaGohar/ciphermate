@@ -50,55 +50,88 @@ async def google_calendar_login(request: Request):
 
 @router.get("/callback")
 async def google_calendar_callback(request: Request):
-    """Handle Google Calendar OAuth callback - redirect to frontend for token exchange"""
+    """Handle Google Calendar OAuth callback - exchange token directly, no redirect loop"""
     try:
+        from starlette.responses import RedirectResponse, HTMLResponse
+        from urllib.parse import urlencode
+        
         code = request.query_params.get("code")
         error = request.query_params.get("error")
         state = request.query_params.get("state")
         
-        # Get frontend URL from environment or request
-        frontend_url = getattr(settings, 'FRONTEND_URL', None)
-        if not frontend_url or frontend_url == 'http://localhost:3000':
-            # Try to derive from request
-            host = request.headers.get("host", "")
-            scheme = request.headers.get("x-forwarded-proto", "http")
-            # Default to production Vercel URL
-            frontend_url = "https://ciphermate.vercel.app"
+        # Get frontend URL
+        frontend_url = getattr(settings, 'FRONTEND_URL', "https://ciphermate.vercel.app")
         
-        # If there's an error from Google, redirect to frontend with error
+        # If there's an error from Google
         if error:
             logger.error(f"Google OAuth error: {error}")
-            from starlette.responses import RedirectResponse
             return RedirectResponse(
-                url=f"{frontend_url}/api/v1/auth/google/callback?error={error}",
+                url=f"{frontend_url}?error={error}&service=google_calendar",
                 status_code=302
             )
         
-        # If no code received, redirect with error
+        # If no code received
         if not code:
             logger.error("No authorization code received")
-            from starlette.responses import RedirectResponse
             return RedirectResponse(
-                url=f"{frontend_url}/api/v1/auth/google/callback?error=no_code",
+                url=f"{frontend_url}?error=no_code&service=google_calendar",
                 status_code=302
             )
         
-        # Redirect to frontend callback with code for token exchange
-        # Frontend will call POST /api/v1/auth/google/exchange-token
-        logger.info(f"✅ Google Calendar code received, redirecting to frontend for token exchange")
-        from starlette.responses import RedirectResponse
+        # Exchange code for token DIRECTLY (no redirect to frontend)
+        logger.info(f"✅ Google Calendar code received, exchanging token directly")
+        
+        # Get redirect URI that was used
+        host = request.headers.get("host", "")
+        scheme = request.headers.get("x-forwarded-proto", "http")
+        backend_url = f"{scheme}://{host}"
+        redirect_uri = f"{backend_url}/api/v1/auth/google/callback"
+        
+        # Call Google token endpoint
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                }
+            )
+        
+        if response.status_code != 200:
+            logger.error(f"Google token exchange failed: {response.status_code} - {response.text}")
+            return RedirectResponse(
+                url=f"{frontend_url}?error=token_exchange_failed&service=google_calendar",
+                status_code=302
+            )
+        
+        token_data = response.json()
+        
+        # Store token
+        temp_tokens['current'] = {
+            'access_token': token_data.get('access_token'),
+            'refresh_token': token_data.get('refresh_token'),
+            'expires_in': token_data.get('expires_in'),
+            'scope': token_data.get('scope'),
+            'token_type': token_data.get('token_type', 'Bearer')
+        }
+        
+        logger.info(f"✅ Google Calendar token stored successfully")
+        
+        # Redirect to frontend with success message
         return RedirectResponse(
-            url=f"{frontend_url}/api/v1/auth/google/callback?code={code}&state={state or ''}",
+            url=f"{frontend_url}?success=true&service=google_calendar",
             status_code=302
         )
 
     except Exception as e:
         logger.error(f"Google Calendar OAuth callback error: {e}")
-        # Redirect to frontend with error
         from starlette.responses import RedirectResponse
         frontend_url = getattr(settings, 'FRONTEND_URL', "https://ciphermate.vercel.app")
         return RedirectResponse(
-            url=f"{frontend_url}/api/v1/auth/google/callback?error=callback_failed",
+            url=f"{frontend_url}?error=callback_failed&service=google_calendar",
             status_code=302
         )
 
