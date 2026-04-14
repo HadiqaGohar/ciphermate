@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, HTTPException
 from authlib.integrations.starlette_client import OAuth
 import httpx
 import logging
+import time
 from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/auth/google", tags=["google-calendar-auth"])
@@ -108,17 +109,29 @@ async def google_calendar_callback(request: Request):
             )
         
         token_data = response.json()
+
+        # Extract user_id from state (format: "user_id:random_part")
+        state = request.query_params.get("state", "")
+        user_key = 'current'
+        if state and ':' in state:
+            user_id_from_state = state.split(':')[0]
+            user_key = f"user_{user_id_from_state}"
+            logger.info(f"🔧 Extracted user_id from state: {user_id_from_state}")
         
-        # Store token
-        temp_tokens['current'] = {
+        # Store token with user-specific key AND current key (for backward compatibility)
+        temp_tokens[user_key] = {
             'access_token': token_data.get('access_token'),
             'refresh_token': token_data.get('refresh_token'),
             'expires_in': token_data.get('expires_in'),
+            'expires_at': time.time() + token_data.get('expires_in', 3600),
             'scope': token_data.get('scope'),
             'token_type': token_data.get('token_type', 'Bearer')
         }
-        
-        logger.info(f"✅ Google Calendar token stored successfully")
+        # Also keep 'current' for backward compatibility
+        temp_tokens['current'] = temp_tokens[user_key].copy()
+
+        logger.info(f"✅ Google Calendar token stored successfully for key: {user_key}")
+        logger.info(f"📦 temp_tokens keys: {list(temp_tokens.keys())}")
         
         # Redirect to frontend with success message
         return RedirectResponse(

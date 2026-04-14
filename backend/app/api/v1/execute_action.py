@@ -30,35 +30,49 @@ async def get_user_service_token(user_id: str, service_name: str, db: AsyncSessi
     Get service token for a user. Checks temp_tokens first (for OAuth flow), then database.
     """
     # First check temp_tokens (for immediate use after OAuth)
+    # Check ALL keys, not just 'current', to support multi-user scenarios
     try:
         from app.api.routes.gmail_auth import temp_tokens as gmail_tokens
-        
-        if service_name == "gmail" and 'current' in gmail_tokens:
-            logger.info(f"✅ Using Gmail token from temp_tokens for user {user_id}")
-            return gmail_tokens['current']
+
+        if service_name == "gmail":
+            # Check user-specific key first, then fallback to 'current'
+            user_key = f"user_{user_id}"
+            if user_key in gmail_tokens:
+                logger.info(f"✅ Using Gmail token from temp_tokens[user_key] for user {user_id}")
+                return gmail_tokens[user_key]
+            elif 'current' in gmail_tokens:
+                logger.info(f"✅ Using Gmail token from temp_tokens['current'] for user {user_id}")
+                return gmail_tokens['current']
+            else:
+                logger.warning(f"❌ No Gmail tokens in temp_tokens for user {user_id}")
     except Exception as e:
         logger.warning(f"Error checking gmail temp_tokens: {e}")
-    
+
     try:
         from app.api.routes.google_calendar_auth import temp_tokens as calendar_tokens
-        
-        if service_name == "google_calendar" and 'current' in calendar_tokens:
-            logger.info(f"✅ Using Google Calendar token from temp_tokens for user {user_id}")
-            return calendar_tokens['current']
+
+        if service_name == "google_calendar":
+            user_key = f"user_{user_id}"
+            if user_key in calendar_tokens:
+                logger.info(f"✅ Using Google Calendar token from temp_tokens[user_key] for user {user_id}")
+                return calendar_tokens[user_key]
+            elif 'current' in calendar_tokens:
+                logger.info(f"✅ Using Google Calendar token from temp_tokens['current'] for user {user_id}")
+                return calendar_tokens['current']
     except Exception as e:
         logger.warning(f"Error checking calendar temp_tokens: {e}")
-    
+
     # Fallback to TokenVault database
     try:
         from app.core.token_vault import token_vault_service
-        
+
         logger.info(f"🔍 Checking TokenVault for {service_name} token for user {user_id}")
         token_data = await token_vault_service.retrieve_token(
             user_id=str(user_id),
             service_name=service_name,
             auto_refresh=True
         )
-        
+
         if token_data:
             logger.info(f"✅ Retrieved {service_name} token from TokenVault for user {user_id}")
             return token_data

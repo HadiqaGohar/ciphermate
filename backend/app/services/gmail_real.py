@@ -53,10 +53,15 @@ class RealGmailService:
                 logger.warning(f"No Gmail token found for user {user_id}, checking temp_tokens")
                 # Import here to avoid circular imports
                 from app.api.routes.gmail_auth import temp_tokens
-                
-                if 'current' in temp_tokens:
+
+                # Check user-specific key first, then fallback to 'current'
+                user_key = f"user_{user_id_str}"
+                if user_key in temp_tokens:
+                    token_data = temp_tokens[user_key]
+                    logger.info(f"✅ Using Gmail token from temp_tokens[{user_key}]")
+                elif 'current' in temp_tokens:
                     token_data = temp_tokens['current']
-                    logger.info(f"✅ Using Gmail token from temp_tokens")
+                    logger.info(f"✅ Using Gmail token from temp_tokens['current']")
                 else:
                     logger.warning(f"No Gmail token in temp_tokens either")
                     return {
