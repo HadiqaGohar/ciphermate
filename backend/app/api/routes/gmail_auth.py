@@ -80,13 +80,12 @@ async def gmail_callback(request: Request):
         
         # Exchange code for token DIRECTLY (no redirect to frontend)
         logger.info(f"✅ Gmail code received, exchanging token directly")
-        
-        # Get redirect URI that was used
-        host = request.headers.get("host", "")
-        scheme = request.headers.get("x-forwarded-proto", "http")
-        backend_url = f"{scheme}://{host}"
-        redirect_uri = f"{backend_url}/api/v1/auth/gmail/callback"
-        
+
+        # Use the redirect_uri from the frontend (must match what was used in auth request)
+        # For GET callback from browser flow, use frontend URL
+        redirect_uri = f"{frontend_url}/api/v1/auth/gmail/callback"
+        logger.info(f"🔧 Using frontend redirect URI: {redirect_uri}")
+
         # Call Google token endpoint
         async with httpx.AsyncClient() as client:
             response = await client.post(
